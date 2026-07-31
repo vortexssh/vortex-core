@@ -1,0 +1,167 @@
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.host import Host
+from app.models.tag import Tag
+from app.repositories.host import HostRepository
+from app.repositories.tag import TagRepository
+from app.schemas.host import HostCreate, HostUpdate, TagCreate, TagUpdate
+
+
+class HostService:
+    def __init__(self, session: AsyncSession) -> None:
+        self._hosts = HostRepository(session)
+        self._tags = TagRepository(session)
+        self._session = session
+
+    async def list_hosts(
+        self,
+        user_id: UUID,
+        *,
+        tag_id: UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> list[Host]:
+        return await self._hosts.list_for_user(
+            user_id, tag_id=tag_id, offset=offset, limit=limit
+        )
+
+    async def get_host(self, user_id: UUID, host_id: UUID) -> Host:
+        host = await self._hosts.get_by_id(host_id, user_id)
+        if host is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "host_not_found", "message": "Host not found"},
+            )
+        return host
+
+    async def create_host(self, user_id: UUID, payload: HostCreate) -> Host:
+        host = Host(
+            user_id=user_id,
+            name=payload.name,
+            ip_address=payload.ip_address,
+            port=payload.port,
+            username=payload.username,
+            is_proxy_enabled=payload.is_proxy_enabled,
+        )
+        host = await self._hosts.create(host)
+        await self._session.commit()
+        return await self.get_host(user_id, host.id)
+
+    async def update_host(
+        self,
+        user_id: UUID,
+        host_id: UUID,
+        payload: HostUpdate,
+    ) -> Host:
+        host = await self.get_host(user_id, host_id)
+        data = payload.model_dump(exclude_unset=True)
+        for key, value in data.items():
+            setattr(host, key, value)
+        await self._hosts.save(host)
+        await self._session.commit()
+        return await self.get_host(user_id, host_id)
+
+    async def set_proxy(
+        self,
+        user_id: UUID,
+        host_id: UUID,
+        enabled: bool,
+    ) -> Host:
+        host = await self.get_host(user_id, host_id)
+        host.is_proxy_enabled = enabled
+        await self._hosts.save(host)
+        await self._session.commit()
+        return await self.get_host(user_id, host_id)
+
+    async def delete_host(self, user_id: UUID, host_id: UUID) -> None:
+        host = await self.get_host(user_id, host_id)
+        await self._hosts.delete(host)
+        await self._session.commit()
+
+    async def attach_tag(
+        self,
+        user_id: UUID,
+        host_id: UUID,
+        tag_id: UUID,
+    ) -> Host:
+        host = await self.get_host(user_id, host_id)
+        tag = await self._tags.get_by_id(tag_id, user_id)
+        if tag is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "tag_not_found", "message": "Tag not found"},
+            )
+        await self._hosts.attach_tag(host, tag)
+        await self._session.commit()
+        return await self.get_host(user_id, host_id)
+
+    async def detach_tag(
+        self,
+        user_id: UUID,
+        host_id: UUID,
+        tag_id: UUID,
+    ) -> Host:
+        host = await self.get_host(user_id, host_id)
+        tag = await self._tags.get_by_id(tag_id, user_id)
+        if tag is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "tag_not_found", "message": "Tag not found"},
+            )
+        await self._hosts.detach_tag(host, tag)
+        await self._session.commit()
+        return await self.get_host(user_id, host_id)
+
+
+class TagService:
+    def __init__(self, session: AsyncSession) -> None:
+        self._tags = TagRepository(session)
+        self._session = session
+
+    async def list_tags(self, user_id: UUID) -> list[Tag]:
+        return await self._tags.list_for_user(user_id)
+
+    async def create_tag(self, user_id: UUID, payload: TagCreate) -> Tag:
+        tag = Tag(user_id=user_id, name=payload.name, color=payload.color)
+        try:
+            tag = await self._tags.create(tag)
+            await self._session.commit()
+        except Exception as exc:
+            await self._session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "tag_exists", "message": "Tag name already exists"},
+            ) from exc
+        return tag
+
+    async def update_tag(
+        self,
+        user_id: UUID,
+        tag_id: UUID,
+        payload: TagUpdate,
+    ) -> Tag:
+        tag = await self._tags.get_by_id(tag_id, user_id)
+        if tag is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "tag_not_found", "message": "Tag not found"},
+            )
+        data = payload.model_dump(exclude_unset=True)
+        for key, value in data.items():
+            setattr(tag, key, value)
+        await self._tags.save(tag)
+        await self._session.commit()
+        return tag
+
+    async def delete_tag(self, user_id: UUID, tag_id: UUID) -> None:
+        tag = await self._tags.get_by_id(tag_id, user_id)
+        if tag is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "tag_not_found", "message": "Tag not found"},
+            )
+        await self._tags.delete(tag)
+        await self._session.commit()

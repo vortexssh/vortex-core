@@ -1,1 +1,5 @@
-"""WebSocket tunnel router (agent connections, TCP/SSH proxy, PTY)."""
+"""WebSocket tunnel router package."""
+
+from app.websocket.manager import connection_manager
+
+__all__ = ["connection_manager"]

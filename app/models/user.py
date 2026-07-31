@@ -8,7 +8,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.api_key import ApiKey
     from app.models.host import Host
+    from app.models.tag import Tag
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -39,6 +41,18 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     hosts: Mapped[list[Host]] = relationship(
         "Host",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    api_keys: Mapped[list[ApiKey]] = relationship(
+        "ApiKey",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    tags: Mapped[list[Tag]] = relationship(
+        "Tag",
         back_populates="owner",
         cascade="all, delete-orphan",
         lazy="selectin",

@@ -1,0 +1,33 @@
+{
+	# Email for Let's Encrypt account (optional, set ACME_EMAIL in compose if desired)
+	# email {$ACME_EMAIL:}
+}
+
+{$DOMAIN:localhost} {
+	encode gzip
+
+	@websockets path /ws/*
+
+	handle @websockets {
+		reverse_proxy api:8000 {
+			transport http {
+				read_timeout 0
+				write_timeout 0
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy api:8000
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	log {
+		output stdout
+	}
+}

@@ -8,128 +8,102 @@
 
 | Функция | Описание |
 |---|---|
-| **REST API** | Метаданные хостов, профили пользователей, жёсткая 2FA (TOTP) |
-| **WebSocket Tunnel Router** | Долгоживущие соединения с агентами, прокси TCP/SSH, PTY для WebSSH |
-| **Телеметрия** | CPU/RAM и т.п. пишутся **только в Redis** (с TTL), не в PostgreSQL |
-
-> Сейчас в репозитории — каркас: конфиг, async PostgreSQL, модели `users` / `hosts`, health-check. Auth, CRUD, агенты и туннели — следующие итерации.
+| **REST API** | Auth (JWT + TOTP), API keys, hosts, tags, agents, tasks |
+| **WebSocket Tunnel Router** | Agent WSS, TCP/SSH proxy, PTY для WebSSH |
+| **Телеметрия** | CPU/RAM и т.п. только в Redis (TTL), не в PostgreSQL |
+| **2FA enforcement** | Телеметрия, WebSSH, proxy, tasks — только при `is_2fa_enabled` |
 
 ## Стек
 
 - Python 3.11+
 - FastAPI (async)
-- PostgreSQL + SQLAlchemy 2.0 / SQLModel + asyncpg
+- PostgreSQL + SQLAlchemy 2.0 + asyncpg
 - Redis (redis-py async)
 - Alembic
-- JWT + TOTP (Google Authenticator)
+- JWT + TOTP
+- APScheduler (cron dispatch)
 
-## Архитектура
-
-Слоистая структура:
-
-```
-Routers → Services → Repositories → Models
-```
-
-```
-app/
-├── main.py              # FastAPI app + lifespan
-├── core/                # Settings, DB engine
-├── models/              # ORM (users, hosts, …)
-├── schemas/             # Pydantic DTO
-├── repositories/        # Доступ к данным
-├── services/            # Бизнес-логика
-├── api/                 # REST-роутеры + Depends
-└── websocket/           # Tunnel Router
-```
-
-## Требования
-
-- Python 3.11+
-- PostgreSQL 14+
-- Redis 6+
-
-## Быстрый старт
+## Быстрый старт (локально)
 
 ```bash
-# 1. Клон и venv
-cd VortexCore
-python3 -m venv .venv
-source .venv/bin/activate
+# Только Postgres + Redis
+docker compose -f docker-compose.dev.yml up -d
 
-# 2. Зависимости
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# 3. Конфиг
 cp .env.example .env
-# отредактируйте DATABASE_URL, REDIS_URL, JWT_SECRET_KEY
-
-# 4. Запуск
+alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Проверка:
+**Продакшен-деплой** (Docker + Nginx/HTTPS): см. [DEPLOY.md](DEPLOY.md).
 
-- Health: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) → `{"status":"ok"}`
-- OpenAPI: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Health: `GET /api/v1/health`
+- OpenAPI: `/docs`
+
+## Структура
+
+```
+app/
+├── main.py
+├── core/           # config, DB, Redis, security, errors, rate limit
+├── models/         # users, api_keys, hosts, tags, agents, tasks
+├── schemas/        # Pydantic DTO
+├── repositories/
+├── services/
+├── api/v1/         # REST routers
+└── websocket/      # Tunnel Router
+alembic/
+docker-compose.yml
+```
+
+## REST (префикс `/api/v1`)
+
+| Группа | Эндпоинты |
+|---|---|
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/2fa/setup\|verify\|disable` |
+| Users | `GET/PATCH /users/me` |
+| API keys | `GET/POST /api-keys`, `DELETE /api-keys/{id}` |
+| Hosts | CRUD `/hosts`, `PATCH /hosts/{id}/proxy`, tags attach/detach |
+| Telemetry | `GET /hosts/{id}/telemetry` (2FA) |
+| Tags | CRUD `/tags` |
+| Agents | `POST/GET/DELETE /hosts/{id}/agents`, `POST .../rotate` (2FA на create/rotate/revoke) |
+| Tasks | CRUD + `POST /tasks/{id}/run`, `GET /tasks/{id}/logs` (2FA) |
+
+Авторизация: `Authorization: Bearer <jwt|vxk_...>` или `X-API-Key: vxk_...`.
+
+## WebSocket
+
+| Endpoint | Auth | Назначение |
+|---|---|---|
+| `WS /ws/agent?agent_id=&secret=&version=` | agent secret | Постоянное соединение агента |
+| `WS /ws/proxy/{host_id}?token=` | JWT/API key + 2FA + `is_proxy_enabled` | Сырой TCP/SSH туннель |
+| `WS /ws/pty/{host_id}?token=&cols=&rows=` | JWT/API key + 2FA | Web-терминал (PTY) |
+
+### Кадры агента (JSON)
+
+- `telemetry` — `{ "type": "telemetry", "cpu_percent": ..., ... }`
+- `heartbeat` — продлевает Redis presence
+- `proxy_open` / `proxy_data` / `proxy_close` (от Core к агенту и обратно)
+- `pty_open` / `pty_data` / `pty_close`
+- `task_run` / `task_result` (`status`: SUCCESS\|FAILED\|TIMEOUT)
+
+Бинарные данные в `*_data` передаются как `encoding: base64`.
+
+## Безопасность
+
+1. **Zero-trust** — схемы hosts отвергают `password` / `private_key` / и т.п.
+2. **2FA** — dependency `require_2fa` на agent-facing REST и WS proxy/pty.
+3. **No DB metrics** — только Redis ключ `telemetry:{host_id}` с TTL.
+4. Секреты агентов и API keys — bcrypt hash; plaintext один раз при создании.
+
+## Тесты
+
+```bash
+pytest                 # unit + OpenAPI smoke
+RUN_INTEGRATION=1 pytest tests/test_integration.py
+```
 
 ## Конфигурация
 
-Переменные окружения (см. `.env.example`):
-
-| Переменная | Описание |
-|---|---|
-| `APP_NAME` | Имя приложения |
-| `APP_ENV` | `development` / `production` |
-| `DEBUG` | SQL echo и debug FastAPI |
-| `API_V1_PREFIX` | Префикс API (`/api/v1`) |
-| `DATABASE_URL` | DSN async PostgreSQL (`postgresql+asyncpg://…`) |
-| `REDIS_URL` | URL Redis |
-| `JWT_SECRET_KEY` | Секрет JWT (**≥ 32 символов**) |
-| `JWT_ALGORITHM` | Алгоритм JWT (по умолчанию `HS256`) |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | TTL access-токена |
-| `TELEMETRY_TTL_SECONDS` | TTL ключей телеметрии в Redis |
-
-## Модели (PostgreSQL)
-
-### `users`
-
-| Поле | Назначение |
-|---|---|
-| `email` | Уникальный логин |
-| `password_hash` | Хэш пароля аккаунта Vortex (не SSH) |
-| `totp_secret` | Секрет TOTP |
-| `is_2fa_enabled` | Флаг обязательной 2FA |
-
-### `hosts`
-
-Только метаданные (zero-trust):
-
-| Поле | Назначение |
-|---|---|
-| `name` | Отображаемое имя |
-| `ip_address` | IP (`INET`) |
-| `port` | SSH-порт |
-| `username` | Имя пользователя на хосте |
-| `is_proxy_enabled` | Туннель через агента |
-
-Планируемые сущности: `api_keys`, `tags` / `host_tags`, `agents`, `tasks` / `task_logs`.
-
-## Правила безопасности
-
-1. **Zero-trust** — Core не принимает и не хранит пароли/приватные ключи целевых серверов.
-2. **2FA enforcement** — эндпоинты, связанные с агентами (телеметрия, WebSSH, задачи), требуют `is_2fa_enabled == True`.
-3. **No DB metrics** — телеметрия агентов только в Redis с TTL.
-
-## Разработка
-
-```bash
-# Импорт приложения / проверка настроек
-python -c "from app.main import app; print(app.title)"
-```
-
-Dependency injection: сессия БД через `Depends(get_db)` из `app.api.deps`.
-
-## Лицензия
-
-Проприетарный код проекта VortexSSH. Все права защищены.
+См. `.env.example` (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET_KEY`, CORS, rate limits, TTL).
