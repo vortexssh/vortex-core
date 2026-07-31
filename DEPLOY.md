@@ -43,7 +43,7 @@ nano .env
 ```bash
 cd /opt/vortex-core
 docker compose up -d --build
-# API слушает только 127.0.0.1:8000
+# API слушает только 127.0.0.1:18000
 ```
 
 ## 5. Nginx + TLS
@@ -61,6 +61,7 @@ sudo certbot --nginx -d api.vortex.timant32.ru --non-interactive --agree-tos -m 
 
 ```bash
 curl -fsS https://api.vortex.timant32.ru/api/v1/health
+curl -fsS http://127.0.0.1:18000/api/v1/health
 ```
 
 ## 6. Обновление
@@ -74,7 +75,7 @@ docker compose up -d --build
 ## Архитектура
 
 ```
-Internet → Nginx (:80/:443) → 127.0.0.1:8000 (api container)
+Internet → Nginx (:80/:443) → 127.0.0.1:18000 (api container)
                                ├─ postgres
                                └─ redis
 ```

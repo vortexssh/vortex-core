@@ -47,7 +47,8 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8000:8000"
+      # Host :8000 is already used by another app on the VPS
+      - "127.0.0.1:18000:8000"
     networks:
       - vortex
 
