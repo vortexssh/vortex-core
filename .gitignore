@@ -27,3 +27,5 @@ htmlcov/
 
 # Alembic / local artifacts
 *.db
+
+.cursorrules
