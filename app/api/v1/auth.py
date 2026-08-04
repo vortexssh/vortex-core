@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Request, status
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentUser, DbSession, RedisClient
 from app.core.config import get_settings
 from app.core.rate_limit import client_ip, rate_limiter
 from app.schemas.auth import (
+    EmailVerifyRequest,
     PasswordChangeRequest,
+    RegisterResponse,
+    ResendVerificationRequest,
     TokenResponse,
     TotpDisableRequest,
     TotpSetupResponse,
@@ -20,13 +23,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post(
     "/register",
-    response_model=UserRead,
+    response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def register(payload: UserCreate, session: DbSession) -> UserRead:
-    service = AuthService(session)
-    user = await service.register(payload)
-    return UserRead.model_validate(user)
+async def register(
+    payload: UserCreate,
+    session: DbSession,
+    redis: RedisClient,
+    request: Request,
+) -> RegisterResponse:
+    settings = get_settings()
+    rate_limiter.check(
+        f"register:{client_ip(request)}",
+        limit=settings.login_rate_limit_per_minute,
+    )
+    service = AuthService(session, redis)
+    return await service.register(payload)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -44,10 +56,35 @@ async def login(
     return await service.login(payload)
 
 
+@router.post("/verify-email", response_model=TokenResponse)
+async def verify_email(
+    payload: EmailVerifyRequest,
+    session: DbSession,
+    redis: RedisClient,
+) -> TokenResponse:
+    service = AuthService(session, redis)
+    return await service.verify_email(payload.token)
+
+
+@router.post("/resend-verification", response_model=RegisterResponse)
+async def resend_verification(
+    payload: ResendVerificationRequest,
+    session: DbSession,
+    redis: RedisClient,
+    request: Request,
+) -> RegisterResponse:
+    settings = get_settings()
+    rate_limiter.check(
+        f"resend-verify:{client_ip(request)}",
+        limit=settings.login_rate_limit_per_minute,
+    )
+    service = AuthService(session, redis)
+    return await service.resend_verification(payload.email)
+
+
 @router.post("/2fa/setup", response_model=TotpSetupResponse)
 async def setup_2fa(user: CurrentUser, session: DbSession) -> TotpSetupResponse:
     service = AuthService(session)
-    # Re-load mutable user on this session
     from app.repositories.user import UserRepository
 
     db_user = await UserRepository(session).get_by_id(user.id)

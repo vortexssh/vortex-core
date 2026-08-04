@@ -48,6 +48,7 @@ class HostService:
             country_code=payload.country_code,
             is_hidden=payload.is_hidden,
             is_proxy_enabled=payload.is_proxy_enabled,
+            sort_order=await self._hosts.next_sort_order(user_id),
         )
         host = await self._hosts.create(host)
         await self._session.commit()
@@ -90,6 +91,31 @@ class HostService:
         await self._hosts.save(host)
         await self._session.commit()
         return await self.get_host(user_id, host_id)
+
+    async def reorder_hosts(self, user_id: UUID, host_ids: list[UUID]) -> list[Host]:
+        """Assign sort_order 0..n-1 from the given sequence (must all belong to user)."""
+        seen: set[UUID] = set()
+        ordered: list[Host] = []
+        for hid in host_ids:
+            if hid in seen:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": "duplicate_host", "message": "Duplicate host id in reorder"},
+                )
+            seen.add(hid)
+            host = await self._hosts.get_by_id(hid, user_id)
+            if host is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"code": "host_not_found", "message": f"Host not found: {hid}"},
+                )
+            ordered.append(host)
+
+        for index, host in enumerate(ordered):
+            host.sort_order = index
+            await self._hosts.save(host)
+        await self._session.commit()
+        return await self.list_hosts(user_id, limit=200)
 
     async def delete_host(self, user_id: UUID, host_id: UUID) -> None:
         host = await self.get_host(user_id, host_id)

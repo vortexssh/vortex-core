@@ -63,6 +63,8 @@ async def test_openapi_contains_core_paths(app) -> None:
     paths = response.json()["paths"]
     assert "/api/v1/auth/register" in paths
     assert "/api/v1/auth/login" in paths
+    assert "/api/v1/auth/verify-email" in paths
+    assert "/api/v1/auth/resend-verification" in paths
     assert "/api/v1/hosts" in paths
     assert "/api/v1/tags" in paths
     assert "/api/v1/hosts/{host_id}/agents" in paths

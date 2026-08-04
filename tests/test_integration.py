@@ -31,6 +31,12 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_auth_host_agent_2fa_flow(client: AsyncClient) -> None:
+    from sqlalchemy import select
+
+    from app.core.database import AsyncSessionLocal
+    from app.core.redis import get_redis_client
+    from app.models.user import User
+
     email = "integ@example.com"
     password = "password123"
 
@@ -39,17 +45,41 @@ async def test_auth_host_agent_2fa_flow(client: AsyncClient) -> None:
         json={"email": email, "password": password},
     )
     if reg.status_code == 409:
-        # already exists from previous run
-        pass
+        # already exists — ensure verification email can be re-sent
+        resend = await client.post(
+            "/api/v1/auth/resend-verification",
+            json={"email": email},
+        )
+        assert resend.status_code == 200, resend.text
     else:
         assert reg.status_code == 201, reg.text
+        assert "email" in reg.json()
 
-    login = await client.post(
+    blocked = await client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": password},
     )
-    assert login.status_code == 200, login.text
-    token = login.json()["access_token"]
+    # Fresh signup must confirm email first; prior verified accounts may login.
+    if blocked.status_code == 403:
+        assert blocked.json()["error"]["code"] == "email_not_verified"
+        async with AsyncSessionLocal() as session:
+            user = (
+                await session.execute(select(User).where(User.email == email.lower()))
+            ).scalar_one()
+            user_id = user.id
+        redis = get_redis_client()
+        verify_token = await redis.get(f"email_verify:user:{user_id}")
+        assert verify_token, "verification token missing in Redis"
+        verified = await client.post(
+            "/api/v1/auth/verify-email",
+            json={"token": verify_token},
+        )
+        assert verified.status_code == 200, verified.text
+        token = verified.json()["access_token"]
+    else:
+        assert blocked.status_code == 200, blocked.text
+        token = blocked.json()["access_token"]
+
     headers = {"Authorization": f"Bearer {token}"}
 
     setup = await client.post("/api/v1/auth/2fa/setup", headers=headers)

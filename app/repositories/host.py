@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -41,7 +41,7 @@ class HostRepository:
         query = self._base_query().where(Host.user_id == user_id)
         if tag_id is not None:
             query = query.join(host_tags).where(host_tags.c.tag_id == tag_id)
-        query = query.order_by(Host.created_at.desc()).offset(offset).limit(limit)
+        query = query.order_by(Host.sort_order.asc(), Host.created_at.desc()).offset(offset).limit(limit)
         result = await self._session.execute(query)
         return list(result.scalars().unique().all())
 
@@ -50,9 +50,15 @@ class HostRepository:
         result = await self._session.execute(
             self._base_query()
             .where(Host.user_id == user_id, Host.is_hidden.is_(False))
-            .order_by(Host.name.asc())
+            .order_by(Host.sort_order.asc(), Host.name.asc())
         )
         return list(result.scalars().unique().all())
+
+    async def next_sort_order(self, user_id: UUID) -> int:
+        result = await self._session.execute(
+            select(func.coalesce(func.max(Host.sort_order), -1)).where(Host.user_id == user_id)
+        )
+        return int(result.scalar_one()) + 1
 
     async def create(self, host: Host) -> Host:
         self._session.add(host)

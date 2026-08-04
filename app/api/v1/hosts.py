@@ -8,6 +8,7 @@ from app.schemas.host import (
     HostHiddenToggle,
     HostProxyToggle,
     HostRead,
+    HostReorder,
     HostUpdate,
 )
 from app.schemas.task import TelemetryRead
@@ -41,6 +42,17 @@ async def create_host(
     service = HostService(session)
     host = await service.create_host(user.id, payload)
     return HostRead.model_validate(host)
+
+
+@router.patch("/reorder", response_model=list[HostRead])
+async def reorder_hosts(
+    payload: HostReorder,
+    user: CurrentUser,
+    session: DbSession,
+) -> list[HostRead]:
+    service = HostService(session)
+    hosts = await service.reorder_hosts(user.id, payload.host_ids)
+    return [HostRead.model_validate(h) for h in hosts]
 
 
 @router.get("/{host_id}", response_model=HostRead)

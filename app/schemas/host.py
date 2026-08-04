@@ -139,6 +139,12 @@ class HostHiddenToggle(BaseModel):
     is_hidden: bool
 
 
+class HostReorder(BaseModel):
+    """Ordered list of host IDs owned by the current user (full or subset)."""
+
+    host_ids: list[UUID] = Field(min_length=1)
+
+
 class HostRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -149,6 +155,7 @@ class HostRead(BaseModel):
     username: str
     notes: str | None = None
     country_code: str | None = None
+    sort_order: int = 0
     is_hidden: bool = False
     is_proxy_enabled: bool
     tags: list[TagRead] = []

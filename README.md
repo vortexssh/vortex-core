@@ -61,7 +61,7 @@ docker-compose.yml
 
 | Группа | Эндпоинты |
 |---|---|
-| Auth | `POST /auth/register`, `/auth/login`, `/auth/2fa/setup\|verify\|disable` |
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/2fa/setup\|verify\|disable`, `/auth/password` |
 | Users | `GET/PATCH /users/me` (profile + `public_slug`) |
 | Public | `GET /public/u/{slug}` — status page (no auth, no IPs) |
 | API keys | `GET/POST /api-keys`, `DELETE /api-keys/{id}` |

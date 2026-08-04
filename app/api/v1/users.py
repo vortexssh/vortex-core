@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentUser, DbSession, RedisClient
+from app.repositories.user import UserRepository
 from app.schemas.auth import UserRead, UserUpdate
 from app.services.auth import AuthService
-from app.repositories.user import UserRepository
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -18,8 +18,9 @@ async def update_me(
     payload: UserUpdate,
     user: CurrentUser,
     session: DbSession,
+    redis: RedisClient,
 ) -> UserRead:
-    service = AuthService(session)
+    service = AuthService(session, redis)
     db_user = await UserRepository(session).get_by_id(user.id)
     assert db_user is not None
     updated = await service.update_profile(db_user, payload)

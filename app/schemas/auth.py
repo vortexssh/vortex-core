@@ -22,6 +22,7 @@ class UserRead(BaseModel):
     email: EmailStr
     public_slug: str | None = None
     is_2fa_enabled: bool
+    is_email_verified: bool
     is_active: bool
     created_at: datetime
 
@@ -34,6 +35,19 @@ class UserUpdate(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class RegisterResponse(BaseModel):
+    email: EmailStr
+    message: str = "Check your inbox to confirm your email"
+
+
+class EmailVerifyRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=128)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 class TotpSetupResponse(BaseModel):
