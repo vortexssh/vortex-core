@@ -61,7 +61,10 @@ class Settings(BaseSettings):
         default="noreply@vortex.local",
         description="From address for transactional mail",
     )
+    # STARTTLS (typical for port 587). Port 465 always uses implicit SSL.
     smtp_use_tls: bool = True
+    # Force SMTP_SSL even when port is not 465
+    smtp_use_ssl: bool = False
 
     @property
     def is_development(self) -> bool:

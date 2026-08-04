@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 from app.core.config import Settings, get_settings
@@ -45,20 +46,35 @@ def build_verification_email(*, to_email: str, verify_url: str) -> EmailMessage:
     return msg
 
 
+def _use_implicit_ssl(settings: Settings) -> bool:
+    """Port 465 is SMTPS (implicit TLS); 587 uses STARTTLS."""
+    if settings.smtp_port == 465:
+        return True
+    return settings.smtp_use_ssl
+
+
 def _send_smtp_sync(settings: Settings, message: EmailMessage) -> None:
-    if settings.smtp_use_tls:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.ehlo()
+    if _use_implicit_ssl(settings):
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(
+            settings.smtp_host,
+            settings.smtp_port,
+            timeout=30,
+            context=context,
+        ) as smtp:
             if settings.smtp_user:
                 smtp.login(settings.smtp_user, settings.smtp_password)
             smtp.send_message(message)
-    else:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
-            if settings.smtp_user:
-                smtp.login(settings.smtp_user, settings.smtp_password)
-            smtp.send_message(message)
+        return
+
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
+        smtp.ehlo()
+        if settings.smtp_use_tls:
+            smtp.starttls(context=ssl.create_default_context())
+            smtp.ehlo()
+        if settings.smtp_user:
+            smtp.login(settings.smtp_user, settings.smtp_password)
+        smtp.send_message(message)
 
 
 async def send_verification_email(*, to_email: str, verify_url: str) -> None:
