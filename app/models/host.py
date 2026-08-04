@@ -61,9 +61,10 @@ class Host(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    # Tasks are loaded explicitly where needed — not on every host list.
     tasks: Mapped[list[Task]] = relationship(
         "Task",
         back_populates="host",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )

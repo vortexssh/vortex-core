@@ -46,9 +46,11 @@ class Tag(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     color: Mapped[str] = mapped_column(String(7), nullable=False, default="#00FF00")
 
     owner: Mapped[User] = relationship("User", back_populates="tags")
+    # Never selectin-load hosts here — that fans out into Host.tags/agent/tasks
+    # on every GET /tags and breaks clients under load.
     hosts: Mapped[list[Host]] = relationship(
         "Host",
         secondary=host_tags,
         back_populates="tags",
-        lazy="selectin",
+        lazy="noload",
     )

@@ -51,21 +51,22 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
 
+    # Avoid selectin on auth — User is loaded on every request via Depends.
     hosts: Mapped[list[Host]] = relationship(
         "Host",
         back_populates="owner",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     api_keys: Mapped[list[ApiKey]] = relationship(
         "ApiKey",
         back_populates="owner",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     tags: Mapped[list[Tag]] = relationship(
         "Tag",
         back_populates="owner",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )

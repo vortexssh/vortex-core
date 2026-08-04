@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.host import Host
@@ -135,8 +136,11 @@ class HostService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"code": "tag_not_found", "message": "Tag not found"},
             )
-        await self._hosts.attach_tag(host, tag)
-        await self._session.commit()
+        try:
+            await self._hosts.attach_tag(host, tag)
+            await self._session.commit()
+        except IntegrityError:
+            await self._session.rollback()
         return await self.get_host(user_id, host_id)
 
     async def detach_tag(
@@ -156,6 +160,27 @@ class HostService:
         await self._session.commit()
         return await self.get_host(user_id, host_id)
 
+    async def set_host_tags(
+        self,
+        user_id: UUID,
+        host_id: UUID,
+        tag_ids: list[UUID],
+    ) -> Host:
+        host = await self.get_host(user_id, host_id)
+        unique_ids = list(dict.fromkeys(tag_ids))
+        tags: list[Tag] = []
+        for tid in unique_ids:
+            tag = await self._tags.get_by_id(tid, user_id)
+            if tag is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"code": "tag_not_found", "message": f"Tag not found: {tid}"},
+                )
+            tags.append(tag)
+        await self._hosts.set_tags(host, tags)
+        await self._session.commit()
+        return await self.get_host(user_id, host_id)
+
 
 class TagService:
     def __init__(self, session: AsyncSession) -> None:
@@ -170,7 +195,7 @@ class TagService:
         try:
             tag = await self._tags.create(tag)
             await self._session.commit()
-        except Exception as exc:
+        except IntegrityError as exc:
             await self._session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -193,8 +218,15 @@ class TagService:
         data = payload.model_dump(exclude_unset=True)
         for key, value in data.items():
             setattr(tag, key, value)
-        await self._tags.save(tag)
-        await self._session.commit()
+        try:
+            await self._tags.save(tag)
+            await self._session.commit()
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "tag_exists", "message": "Tag name already exists"},
+            ) from exc
         return tag
 
     async def delete_tag(self, user_id: UUID, tag_id: UUID) -> None:

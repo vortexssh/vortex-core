@@ -77,11 +77,14 @@ class HostRepository:
         await self._session.flush()
 
     async def attach_tag(self, host: Host, tag: Tag) -> Host:
-        if tag not in host.tags:
+        if not any(t.id == tag.id for t in host.tags):
             host.tags.append(tag)
         return await self.save(host)
 
     async def detach_tag(self, host: Host, tag: Tag) -> Host:
-        if tag in host.tags:
-            host.tags.remove(tag)
+        host.tags = [t for t in host.tags if t.id != tag.id]
+        return await self.save(host)
+
+    async def set_tags(self, host: Host, tags: list[Tag]) -> Host:
+        host.tags = list(tags)
         return await self.save(host)

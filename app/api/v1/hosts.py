@@ -9,6 +9,7 @@ from app.schemas.host import (
     HostProxyToggle,
     HostRead,
     HostReorder,
+    HostTagsUpdate,
     HostUpdate,
 )
 from app.schemas.task import TelemetryRead
@@ -110,6 +111,18 @@ async def delete_host(
 ) -> None:
     service = HostService(session)
     await service.delete_host(user.id, host_id)
+
+
+@router.put("/{host_id}/tags", response_model=HostRead)
+async def set_host_tags(
+    host_id: UUID,
+    payload: HostTagsUpdate,
+    user: CurrentUser,
+    session: DbSession,
+) -> HostRead:
+    service = HostService(session)
+    host = await service.set_host_tags(user.id, host_id, payload.tag_ids)
+    return HostRead.model_validate(host)
 
 
 @router.post("/{host_id}/tags/{tag_id}", response_model=HostRead)

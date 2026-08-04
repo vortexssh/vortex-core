@@ -175,10 +175,34 @@ class TagCreate(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     color: str = Field(default="#00FF00", pattern=r"^#[0-9A-Fa-f]{6}$")
 
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Tag name cannot be empty")
+        return cleaned
+
 
 class TagUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=64)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Tag name cannot be empty")
+        return cleaned
+
+
+class HostTagsUpdate(BaseModel):
+    """Replace the full set of tags on a host (atomic sync)."""
+
+    tag_ids: list[UUID] = Field(default_factory=list)
 
 
 class TagFullRead(BaseModel):
