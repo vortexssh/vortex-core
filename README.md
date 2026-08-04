@@ -62,9 +62,10 @@ docker-compose.yml
 | Группа | Эндпоинты |
 |---|---|
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/2fa/setup\|verify\|disable` |
-| Users | `GET/PATCH /users/me` |
+| Users | `GET/PATCH /users/me` (profile + `public_slug`) |
+| Public | `GET /public/u/{slug}` — status page (no auth, no IPs) |
 | API keys | `GET/POST /api-keys`, `DELETE /api-keys/{id}` |
-| Hosts | CRUD `/hosts`, `PATCH /hosts/{id}/proxy`, tags attach/detach |
+| Hosts | CRUD `/hosts`, `PATCH .../proxy`, `PATCH .../hidden`, tags |
 | Telemetry | `GET /hosts/{id}/telemetry` (2FA) |
 | Tags | CRUD `/tags` |
 | Agents | `POST/GET/DELETE /hosts/{id}/agents`, `POST .../rotate` (2FA на create/rotate/revoke) |

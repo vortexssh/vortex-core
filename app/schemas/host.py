@@ -28,6 +28,8 @@ class HostCreate(BaseModel):
     port: int = Field(default=22, ge=1, le=65535)
     username: str = Field(min_length=1, max_length=64)
     notes: str | None = Field(default=None, max_length=16_384)
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    is_hidden: bool = False
     is_proxy_enabled: bool = False
 
     @model_validator(mode="before")
@@ -64,6 +66,16 @@ class HostCreate(BaseModel):
         stripped = value.strip()
         return stripped or None
 
+    @field_validator("country_code")
+    @classmethod
+    def normalize_country(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        code = value.strip().upper()
+        if len(code) != 2 or not code.isalpha():
+            raise ValueError("country_code must be ISO-3166 alpha-2")
+        return code
+
 
 class HostUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
@@ -71,6 +83,8 @@ class HostUpdate(BaseModel):
     port: int | None = Field(default=None, ge=1, le=65535)
     username: str | None = Field(default=None, min_length=1, max_length=64)
     notes: str | None = Field(default=None, max_length=16_384)
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    is_hidden: bool | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -106,9 +120,23 @@ class HostUpdate(BaseModel):
         stripped = value.strip()
         return stripped or None
 
+    @field_validator("country_code")
+    @classmethod
+    def normalize_country(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        code = value.strip().upper()
+        if len(code) != 2 or not code.isalpha():
+            raise ValueError("country_code must be ISO-3166 alpha-2")
+        return code
+
 
 class HostProxyToggle(BaseModel):
     is_proxy_enabled: bool
+
+
+class HostHiddenToggle(BaseModel):
+    is_hidden: bool
 
 
 class HostRead(BaseModel):
@@ -120,6 +148,8 @@ class HostRead(BaseModel):
     port: int
     username: str
     notes: str | None = None
+    country_code: str | None = None
+    is_hidden: bool = False
     is_proxy_enabled: bool
     tags: list[TagRead] = []
     agent: AgentStatusRead | None = None

@@ -20,6 +20,7 @@ class UserRead(BaseModel):
 
     id: UUID
     email: EmailStr
+    public_slug: str | None = None
     is_2fa_enabled: bool
     is_active: bool
     created_at: datetime
@@ -27,6 +28,7 @@ class UserRead(BaseModel):
 
 class UserUpdate(BaseModel):
     email: EmailStr | None = None
+    public_slug: str | None = Field(default=None, max_length=64)
 
 
 class TokenResponse(BaseModel):

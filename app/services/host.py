@@ -45,6 +45,8 @@ class HostService:
             port=payload.port,
             username=payload.username,
             notes=payload.notes,
+            country_code=payload.country_code,
+            is_hidden=payload.is_hidden,
             is_proxy_enabled=payload.is_proxy_enabled,
         )
         host = await self._hosts.create(host)
@@ -73,6 +75,18 @@ class HostService:
     ) -> Host:
         host = await self.get_host(user_id, host_id)
         host.is_proxy_enabled = enabled
+        await self._hosts.save(host)
+        await self._session.commit()
+        return await self.get_host(user_id, host_id)
+
+    async def set_hidden(
+        self,
+        user_id: UUID,
+        host_id: UUID,
+        hidden: bool,
+    ) -> Host:
+        host = await self.get_host(user_id, host_id)
+        host.is_hidden = hidden
         await self._hosts.save(host)
         await self._session.commit()
         return await self.get_host(user_id, host_id)

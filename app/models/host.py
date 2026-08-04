@@ -32,6 +32,13 @@ class Host(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     port: Mapped[int] = mapped_column(Integer, default=22, nullable=False)
     username: Mapped[str] = mapped_column(String(64), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    country_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    is_hidden: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
     is_proxy_enabled: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

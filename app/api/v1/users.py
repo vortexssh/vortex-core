@@ -22,5 +22,5 @@ async def update_me(
     service = AuthService(session)
     db_user = await UserRepository(session).get_by_id(user.id)
     assert db_user is not None
-    updated = await service.update_profile(db_user, payload.email)
+    updated = await service.update_profile(db_user, payload)
     return UserRead.model_validate(updated)

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, status
 from app.api.deps import CurrentUser, DbSession, RedisClient, UserWith2FA
 from app.schemas.host import (
     HostCreate,
+    HostHiddenToggle,
     HostProxyToggle,
     HostRead,
     HostUpdate,
@@ -74,6 +75,18 @@ async def toggle_proxy(
 ) -> HostRead:
     service = HostService(session)
     host = await service.set_proxy(user.id, host_id, payload.is_proxy_enabled)
+    return HostRead.model_validate(host)
+
+
+@router.patch("/{host_id}/hidden", response_model=HostRead)
+async def toggle_hidden(
+    host_id: UUID,
+    payload: HostHiddenToggle,
+    user: CurrentUser,
+    session: DbSession,
+) -> HostRead:
+    service = HostService(session)
+    host = await service.set_hidden(user.id, host_id, payload.is_hidden)
     return HostRead.model_validate(host)
 
 

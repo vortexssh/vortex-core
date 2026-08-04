@@ -22,6 +22,12 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_public_slug(self, slug: str) -> User | None:
+        result = await self._session.execute(
+            select(User).where(User.public_slug == slug.lower())
+        )
+        return result.scalar_one_or_none()
+
     async def create(self, user: User) -> User:
         self._session.add(user)
         await self._session.flush()

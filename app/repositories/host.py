@@ -45,6 +45,15 @@ class HostRepository:
         result = await self._session.execute(query)
         return list(result.scalars().unique().all())
 
+    async def list_public_for_user(self, user_id: UUID) -> list[Host]:
+        """Hosts visible on the public status page (not hidden)."""
+        result = await self._session.execute(
+            self._base_query()
+            .where(Host.user_id == user_id, Host.is_hidden.is_(False))
+            .order_by(Host.name.asc())
+        )
+        return list(result.scalars().unique().all())
+
     async def create(self, host: Host) -> Host:
         self._session.add(host)
         await self._session.flush()

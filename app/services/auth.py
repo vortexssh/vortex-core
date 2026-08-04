@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,9 +14,11 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.repositories.user import UserRepository
-from app.schemas.auth import TokenResponse, TotpSetupResponse, UserCreate, UserLogin
+from app.schemas.auth import TokenResponse, TotpSetupResponse, UserCreate, UserLogin, UserUpdate
 
 logger = logging.getLogger(__name__)
+
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 
 
 class AuthService:
@@ -115,15 +118,49 @@ class AuthService:
         await self._session.commit()
         return user
 
-    async def update_profile(self, user: User, email: str | None) -> User:
-        if email is not None:
+    async def update_profile(self, user: User, payload: UserUpdate) -> User:
+        data = payload.model_dump(exclude_unset=True)
+
+        if "email" in data and data["email"] is not None:
+            email = str(data["email"]).lower()
             existing = await self._users.get_by_email(email)
             if existing is not None and existing.id != user.id:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail={"code": "email_taken", "message": "Email already registered"},
                 )
-            user.email = email.lower()
+            user.email = email
+
+        if "public_slug" in data:
+            user.public_slug = _normalize_public_slug(data["public_slug"])
+            if user.public_slug is not None:
+                taken = await self._users.get_by_public_slug(user.public_slug)
+                if taken is not None and taken.id != user.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "code": "slug_taken",
+                            "message": "Public slug already in use",
+                        },
+                    )
+
         await self._users.save(user)
         await self._session.commit()
         return user
+
+
+def _normalize_public_slug(value: str | None) -> str | None:
+    if value is None:
+        return None
+    slug = value.strip().lower()
+    if slug == "":
+        return None
+    if not _SLUG_RE.match(slug):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "invalid_slug",
+                "message": "Slug must be 2–63 chars: lowercase letters, digits, hyphens",
+            },
+        )
+    return slug
