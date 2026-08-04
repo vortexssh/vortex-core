@@ -27,6 +27,7 @@ class HostCreate(BaseModel):
     ip_address: str | None = None
     port: int = Field(default=22, ge=1, le=65535)
     username: str = Field(min_length=1, max_length=64)
+    notes: str | None = Field(default=None, max_length=16_384)
     is_proxy_enabled: bool = False
 
     @model_validator(mode="before")
@@ -55,12 +56,21 @@ class HostCreate(BaseModel):
                 raise ValueError("Invalid IP address") from exc
         return value
 
+    @field_validator("notes")
+    @classmethod
+    def normalize_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
 
 class HostUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     ip_address: str | None = None
     port: int | None = Field(default=None, ge=1, le=65535)
     username: str | None = Field(default=None, min_length=1, max_length=64)
+    notes: str | None = Field(default=None, max_length=16_384)
 
     @model_validator(mode="before")
     @classmethod
@@ -88,6 +98,14 @@ class HostUpdate(BaseModel):
                 raise ValueError("Invalid IP address") from exc
         return value
 
+    @field_validator("notes")
+    @classmethod
+    def normalize_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
 
 class HostProxyToggle(BaseModel):
     is_proxy_enabled: bool
@@ -101,6 +119,7 @@ class HostRead(BaseModel):
     ip_address: str | None
     port: int
     username: str
+    notes: str | None = None
     is_proxy_enabled: bool
     tags: list[TagRead] = []
     agent: AgentStatusRead | None = None

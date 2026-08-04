@@ -222,6 +222,29 @@ class AgentConnectionManager:
             },
         )
 
+    async def resize_pty_session(
+        self,
+        session_id: str,
+        *,
+        cols: int,
+        rows: int,
+    ) -> None:
+        """Tell the agent to apply TIOCSWINSZ for an active PTY session."""
+        session = self._sessions.get(session_id)
+        if session is None or session.kind != "pty":
+            return
+        if cols < 1 or rows < 1:
+            return
+        await self._send_to_agent(
+            session.agent_id,
+            {
+                "type": "pty_resize",
+                "session_id": session_id,
+                "cols": cols,
+                "rows": rows,
+            },
+        )
+
     async def send_task_run(
         self,
         agent_id: UUID,

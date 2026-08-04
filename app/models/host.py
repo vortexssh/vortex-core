@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,7 @@ class Host(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
     port: Mapped[int] = mapped_column(Integer, default=22, nullable=False)
     username: Mapped[str] = mapped_column(String(64), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_proxy_enabled: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

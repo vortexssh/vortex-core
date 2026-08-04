@@ -44,6 +44,7 @@ class HostService:
             ip_address=payload.ip_address,
             port=payload.port,
             username=payload.username,
+            notes=payload.notes,
             is_proxy_enabled=payload.is_proxy_enabled,
         )
         host = await self._hosts.create(host)

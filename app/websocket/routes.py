@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 from uuid import UUID
@@ -265,6 +266,19 @@ async def pty_websocket(
 
         async def on_text(text: str) -> None:
             assert session_id is not None
+            # Control: live PTY resize (do not treat as stdin).
+            if text.startswith("{") and '"pty_resize"' in text:
+                try:
+                    msg = json.loads(text)
+                    if msg.get("type") == "pty_resize":
+                        await connection_manager.resize_pty_session(
+                            session_id,
+                            cols=int(msg["cols"]),
+                            rows=int(msg["rows"]),
+                        )
+                        return
+                except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                    pass
             await connection_manager.forward_client_bytes(
                 session_id, text.encode("utf-8"), kind="pty"
             )
