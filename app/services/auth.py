@@ -148,6 +148,41 @@ class AuthService:
         await self._session.commit()
         return user
 
+    async def change_password(
+        self,
+        user: User,
+        *,
+        current_password: str,
+        new_password: str,
+    ) -> None:
+        if not verify_password(current_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "invalid_password",
+                    "message": "Current password is incorrect",
+                },
+            )
+        if len(new_password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "weak_password",
+                    "message": "New password must be at least 8 characters",
+                },
+            )
+        if current_password == new_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "password_unchanged",
+                    "message": "New password must differ from the current one",
+                },
+            )
+        user.password_hash = hash_password(new_password)
+        await self._users.save(user)
+        await self._session.commit()
+
 
 def _normalize_public_slug(value: str | None) -> str | None:
     if value is None:

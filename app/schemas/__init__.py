@@ -1,6 +1,7 @@
 from app.schemas.agent import AgentCreated, AgentRead, AgentRotateResponse
 from app.schemas.api_key import ApiKeyCreate, ApiKeyCreated, ApiKeyRead
 from app.schemas.auth import (
+    PasswordChangeRequest,
     TokenResponse,
     TotpDisableRequest,
     TotpSetupResponse,
@@ -42,6 +43,7 @@ __all__ = [
     "TaskRead",
     "TaskUpdate",
     "TelemetryRead",
+    "PasswordChangeRequest",
     "TokenResponse",
     "TotpDisableRequest",
     "TotpSetupResponse",

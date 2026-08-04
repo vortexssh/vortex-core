@@ -4,6 +4,7 @@ from app.api.deps import CurrentUser, DbSession
 from app.core.config import get_settings
 from app.core.rate_limit import client_ip, rate_limiter
 from app.schemas.auth import (
+    PasswordChangeRequest,
     TokenResponse,
     TotpDisableRequest,
     TotpSetupResponse,
@@ -82,3 +83,21 @@ async def disable_2fa(
     assert db_user is not None
     updated = await service.disable_2fa(db_user, payload.code)
     return UserRead.model_validate(updated)
+
+
+@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: PasswordChangeRequest,
+    user: CurrentUser,
+    session: DbSession,
+) -> None:
+    from app.repositories.user import UserRepository
+
+    service = AuthService(session)
+    db_user = await UserRepository(session).get_by_id(user.id)
+    assert db_user is not None
+    await service.change_password(
+        db_user,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+    )
