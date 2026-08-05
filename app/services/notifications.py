@@ -95,12 +95,19 @@ class NotificationService:
         settings = settings or await self._settings.get_or_create(user.id)
         attr = KIND_SETTING_ATTR.get(kind_value)
         if attr is not None and not bool(getattr(settings, attr, True)):
+            logger.info(
+                "Skip notify kind=%s user=%s — event toggle %s is off",
+                kind_value,
+                user.email,
+                attr,
+            )
             return
 
         key = dedupe_key or secrets.token_hex(8)
+        delivered: list[str] = []
 
         if settings.in_app_enabled or settings.client_enabled:
-            await self._create_inbox(
+            row = await self._create_inbox(
                 user_id=user.id,
                 host_id=host_id,
                 kind=kind_value,
@@ -115,6 +122,8 @@ class NotificationService:
                     },
                 },
             )
+            if row is not None:
+                delivered.append("inbox")
 
         if settings.email_enabled:
             try:
@@ -127,13 +136,37 @@ class NotificationService:
                         f"padding:16px'>{body}</p>"
                     ),
                 )
+                delivered.append("email")
             except Exception:
                 logger.exception("Activity email failed for %s (%s)", user.email, kind_value)
+        else:
+            logger.info("Skip email kind=%s user=%s — email_enabled=false", kind_value, user.email)
 
-        if settings.telegram_enabled and user.telegram_chat_id:
-            await self._telegram.send_message(
+        if not settings.telegram_enabled:
+            logger.info(
+                "Skip telegram kind=%s user=%s — telegram_enabled=false",
+                kind_value,
+                user.email,
+            )
+        elif not user.telegram_chat_id:
+            logger.warning(
+                "Skip telegram kind=%s user=%s — telegram not linked (no chat_id)",
+                kind_value,
+                user.email,
+            )
+        else:
+            ok = await self._telegram.send_message(
                 user.telegram_chat_id, f"<b>{title}</b>\n{body}"
             )
+            if ok:
+                delivered.append("telegram")
+
+        logger.info(
+            "notify kind=%s user=%s delivered=%s",
+            kind_value,
+            user.email,
+            ",".join(delivered) or "none",
+        )
 
     async def emit_billing_reminder(
         self,

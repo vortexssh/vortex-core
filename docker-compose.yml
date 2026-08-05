@@ -51,6 +51,13 @@ services:
       - "127.0.0.1:18000:8000"
     volumes:
       - vortex_geoip_data:/app/data
+    # Telegram / SMTP often fail with ENETUNREACH when Docker prefers broken IPv6.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
     networks:
       - vortex
 

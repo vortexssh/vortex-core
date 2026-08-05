@@ -53,6 +53,8 @@ def _use_implicit_ssl(settings: Settings) -> bool:
 
 
 def _send_smtp_sync(settings: Settings, message: EmailMessage) -> None:
+    # source_address on 0.0.0.0 prefers IPv4 (same class of Docker IPv6 failures as TG).
+    source = ("0.0.0.0", 0)
     if _use_implicit_ssl(settings):
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(
@@ -60,13 +62,19 @@ def _send_smtp_sync(settings: Settings, message: EmailMessage) -> None:
             settings.smtp_port,
             timeout=30,
             context=context,
+            source_address=source,
         ) as smtp:
             if settings.smtp_user:
                 smtp.login(settings.smtp_user, settings.smtp_password)
             smtp.send_message(message)
         return
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
+    with smtplib.SMTP(
+        settings.smtp_host,
+        settings.smtp_port,
+        timeout=30,
+        source_address=source,
+    ) as smtp:
         smtp.ehlo()
         if settings.smtp_use_tls:
             smtp.starttls(context=ssl.create_default_context())
@@ -93,7 +101,12 @@ async def send_mail(
         message.add_alternative(html, subtype="html")
 
     if not settings.smtp_configured:
-        logger.warning("SMTP not configured — mail to %s: %s\n%s", to_email, subject, text)
+        logger.warning(
+            "SMTP not configured (set SMTP_HOST) — mail NOT sent to %s: %s",
+            to_email,
+            subject,
+        )
+        logger.info("Mail body preview: %s", text[:500])
         return
 
     await asyncio.to_thread(_send_smtp_sync, settings, message)

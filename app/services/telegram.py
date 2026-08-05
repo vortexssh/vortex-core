@@ -7,7 +7,6 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-import httpx
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +15,7 @@ from app.models.notification import TelegramLinkCode
 from app.repositories.notification import TelegramLinkRepository
 from app.repositories.user import UserRepository
 from app.schemas.billing import TelegramLinkResponse, TelegramStatusRead
+from app.services.http_out import outbound_client
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ async def resolve_bot_username() -> str | None:
         return None
     url = f"https://api.telegram.org/bot{token}/getMe"
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with outbound_client(timeout=15.0) as client:
             response = await client.get(url)
             response.raise_for_status()
             data = response.json()
@@ -173,15 +173,20 @@ class TelegramService:
             return False
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with outbound_client(timeout=15.0) as client:
                 response = await client.post(
                     url,
                     json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
                 )
                 if response.status_code != 200:
-                    logger.warning("Telegram send failed: %s", response.text[:200])
+                    logger.warning(
+                        "Telegram send failed chat_id=%s: %s",
+                        chat_id,
+                        response.text[:300],
+                    )
                     return False
+            logger.info("Telegram message sent chat_id=%s", chat_id)
             return True
         except Exception:
-            logger.exception("Telegram send error")
+            logger.exception("Telegram send error chat_id=%s", chat_id)
             return False

@@ -24,6 +24,21 @@ logger = logging.getLogger("vortex_core")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    settings = get_settings()
+    logger.info(
+        "Notify channels: smtp=%s telegram_token=%s",
+        "yes" if settings.smtp_configured else "NO (set SMTP_HOST)",
+        "yes" if settings.telegram_configured else "NO (set TELEGRAM_BOT_TOKEN)",
+    )
+    if settings.telegram_configured:
+        from app.services.telegram import resolve_bot_username
+
+        username = await resolve_bot_username()
+        logger.info(
+            "Telegram getMe: %s",
+            f"@{username}" if username else "FAILED (check Docker egress / token)",
+        )
+
     redis = await init_redis()
     await connection_manager.bind_redis(redis)
     start_scheduler()
