@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 10080  # 7 days
 
     telemetry_ttl_seconds: int = 60
+    # Rolling Redis ring for dashboard charts (survives page reload).
+    telemetry_history_size: int = 120
+    telemetry_history_ttl_seconds: int = 7_200  # 2 hours
 
     cors_origins: str = Field(
         default="*",

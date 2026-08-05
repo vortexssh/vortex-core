@@ -172,3 +172,15 @@ async def get_telemetry(
             detail={"code": "telemetry_missing", "message": "No telemetry available"},
         )
     return data
+
+
+@router.get("/{host_id}/telemetry/history", response_model=list[TelemetryRead])
+async def get_telemetry_history(
+    host_id: UUID,
+    user: UserWith2FA,
+    session: DbSession,
+    redis: RedisClient,
+) -> list[TelemetryRead]:
+    host_service = HostService(session)
+    await host_service.get_host(user.id, host_id)
+    return await TelemetryService(redis).history(host_id)
