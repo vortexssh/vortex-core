@@ -88,6 +88,9 @@ class BillingHostBrief(BaseModel):
     billing_currency: str | None = None
     amount_converted: Decimal | None = None
     country_code: str | None = None
+    # True = stored next renewal; False = projected future occurrence
+    is_next: bool = True
+    cycle: str | None = None
 
 
 class BillingDay(BaseModel):

@@ -25,6 +25,33 @@ from app.schemas.billing import (
 from app.services.fx import FxService
 
 
+def _occurrences_in_range(
+    renewal_at: date,
+    cycle: str,
+    custom_days: int | None,
+    range_start: date,
+    range_end: date,
+) -> list[tuple[date, bool]]:
+    """Yield (occurrence_date, is_next) for dates in [range_start, range_end].
+
+    is_next is True only for the stored next renewal (`renewal_at`).
+    Later cycle advances are projected (inactive in the UI).
+    """
+    cursor = renewal_at
+    # Catch up to the start of the visible range
+    guard = 0
+    while cursor < range_start and guard < 240:
+        cursor = add_billing_period(cursor, cycle, custom_days)
+        guard += 1
+
+    out: list[tuple[date, bool]] = []
+    while cursor <= range_end and guard < 480:
+        out.append((cursor, cursor == renewal_at))
+        cursor = add_billing_period(cursor, cycle, custom_days)
+        guard += 1
+    return out
+
+
 class BillingService:
     def __init__(self, session: AsyncSession, redis: Redis | None = None) -> None:
         self._hosts = HostRepository(session)
@@ -87,14 +114,22 @@ class BillingService:
         year: int,
         month: int,
     ) -> BillingCalendarResponse:
+        from calendar import monthrange
+
         user = await self._users.get_by_id(user_id)
         assert user is not None
         currency = user.preferred_currency
-        hosts = await self._hosts.list_renewals_in_month(user_id, year=year, month=month)
+        month_start = date(year, month, 1)
+        month_end = date(year, month, monthrange(year, month)[1])
+        hosts = await self._hosts.list_billing_for_user(user_id)
         by_day: dict[date, list[BillingHostBrief]] = defaultdict(list)
+
         for host in hosts:
-            if host.billing_renewal_at is None:
+            if not host_billing_ready(host):
                 continue
+            assert host.billing_renewal_at is not None
+            assert host.billing_cycle is not None
+
             converted = None
             if host.billing_amount is not None and host.billing_currency:
                 converted = await self._fx.convert(
@@ -102,16 +137,27 @@ class BillingService:
                     host.billing_currency,
                     currency,
                 )
-            by_day[host.billing_renewal_at].append(
-                BillingHostBrief(
-                    id=host.id,
-                    name=host.name,
-                    billing_amount=host.billing_amount,
-                    billing_currency=host.billing_currency,
-                    amount_converted=converted,
-                    country_code=host.country_code,
+
+            for occurrence, is_next in _occurrences_in_range(
+                host.billing_renewal_at,
+                host.billing_cycle,
+                host.billing_custom_days,
+                month_start,
+                month_end,
+            ):
+                by_day[occurrence].append(
+                    BillingHostBrief(
+                        id=host.id,
+                        name=host.name,
+                        billing_amount=host.billing_amount,
+                        billing_currency=host.billing_currency,
+                        amount_converted=converted,
+                        country_code=host.country_code,
+                        is_next=is_next,
+                        cycle=host.billing_cycle,
+                    )
                 )
-            )
+
         days = [
             BillingDay(date=d, hosts=items)
             for d, items in sorted(by_day.items(), key=lambda x: x[0])
