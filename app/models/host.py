@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -47,6 +49,19 @@ class Host(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
 
+    billing_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    billing_cycle: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    billing_custom_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    billing_renewal_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    billing_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    billing_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    billing_auto_renew: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    billing_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     owner: Mapped[User] = relationship("User", back_populates="hosts")
     tags: Mapped[list[Tag]] = relationship(
         "Tag",
@@ -61,7 +76,6 @@ class Host(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    # Tasks are loaded explicitly where needed — not on every host list.
     tasks: Mapped[list[Task]] = relationship(
         "Task",
         back_populates="host",

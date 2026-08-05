@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -10,6 +11,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.api_key import ApiKey
     from app.models.host import Host
+    from app.models.notification import Notification, UserNotificationSettings
     from app.models.tag import Tag
 
 
@@ -50,8 +52,17 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         server_default="true",
         nullable=False,
     )
+    preferred_currency: Mapped[str] = mapped_column(
+        String(3),
+        default="USD",
+        server_default="USD",
+        nullable=False,
+    )
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_linked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
-    # Avoid selectin on auth — User is loaded on every request via Depends.
     hosts: Mapped[list[Host]] = relationship(
         "Host",
         back_populates="owner",
@@ -67,6 +78,19 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tags: Mapped[list[Tag]] = relationship(
         "Tag",
         back_populates="owner",
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
+    notification_settings: Mapped[UserNotificationSettings | None] = relationship(
+        "UserNotificationSettings",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
+    notifications: Mapped[list[Notification]] = relationship(
+        "Notification",
+        back_populates="user",
         cascade="all, delete-orphan",
         lazy="noload",
     )

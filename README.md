@@ -62,7 +62,9 @@ docker-compose.yml
 | Группа | Эндпоинты |
 |---|---|
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/2fa/setup\|verify\|disable`, `/auth/password` |
-| Users | `GET/PATCH /users/me` (profile + `public_slug`) |
+| Users | `GET/PATCH /users/me` (profile, `public_slug`, `preferred_currency`), notification-settings, telegram link |
+| Billing | `GET /billing/summary`, `/billing/calendar`, `POST /hosts/{id}/billing/advance` |
+| Notifications | `GET /notifications`, mark read / read-all; inbox for Web + TUI (`client` channel) |
 | Public | `GET /public/u/{slug}` — status page (no auth, no IPs) |
 | API keys | `GET/POST /api-keys`, `DELETE /api-keys/{id}` |
 | Hosts | CRUD `/hosts`, `PATCH .../proxy`, `PATCH .../hidden`, tags |
@@ -96,7 +98,8 @@ docker-compose.yml
 1. **Zero-trust** — схемы hosts отвергают `password` / `private_key` / и т.п.
 2. **2FA** — dependency `require_2fa` на agent-facing REST и WS proxy/pty.
 3. **No DB metrics** — только Redis ключ `telemetry:{host_id}` с TTL.
-4. **GeoIP** — `hosts.country_code` заполняется по IP из карточки хоста (create/update) и при подключении агента. Нужен GeoLite2-Country (`MAXMIND_LICENSE_KEY`) или HTTP fallback.
+4. **GeoIP** — `hosts.country_code` заполняется по IP из карточки хоста (create/update/list) и при подключении агента.
+5. **Host billing** — опциональные `billing_*` поля; daily APScheduler шлёт напоминания (email / Telegram / inbox) и auto-renew при online агенте. FX через Frankfurter. Telegram-бот: отдельный репо `vortex-telegram-bot`.
 4. Секреты агентов и API keys — bcrypt hash; plaintext один раз при создании.
 
 ## Тесты

@@ -1,8 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from ipaddress import IPv4Address, IPv6Address
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.schemas.billing import BillingCycleLiteral, BillingFieldsMixin, assert_billing_enabled_complete
 
 
 class TagRead(BaseModel):
@@ -22,7 +25,7 @@ class AgentStatusRead(BaseModel):
     version: str | None
 
 
-class HostCreate(BaseModel):
+class HostCreate(BillingFieldsMixin):
     name: str = Field(min_length=1, max_length=128)
     ip_address: str | None = None
     port: int = Field(default=22, ge=1, le=65535)
@@ -31,6 +34,8 @@ class HostCreate(BaseModel):
     country_code: str | None = Field(default=None, min_length=2, max_length=2)
     is_hidden: bool = False
     is_proxy_enabled: bool = False
+    billing_enabled: bool = False
+    billing_auto_renew: bool = True
 
     @model_validator(mode="before")
     @classmethod
@@ -76,8 +81,20 @@ class HostCreate(BaseModel):
             raise ValueError("country_code must be ISO-3166 alpha-2")
         return code
 
+    @model_validator(mode="after")
+    def validate_billing(self) -> "HostCreate":
+        assert_billing_enabled_complete(
+            billing_enabled=self.billing_enabled,
+            billing_cycle=self.billing_cycle,
+            billing_custom_days=self.billing_custom_days,
+            billing_renewal_at=self.billing_renewal_at,
+            billing_amount=self.billing_amount,
+            billing_currency=self.billing_currency,
+        )
+        return self
 
-class HostUpdate(BaseModel):
+
+class HostUpdate(BillingFieldsMixin):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     ip_address: str | None = None
     port: int | None = Field(default=None, ge=1, le=65535)
@@ -130,6 +147,19 @@ class HostUpdate(BaseModel):
             raise ValueError("country_code must be ISO-3166 alpha-2")
         return code
 
+    @model_validator(mode="after")
+    def validate_billing_on_enable(self) -> "HostUpdate":
+        if self.billing_enabled is True:
+            assert_billing_enabled_complete(
+                billing_enabled=True,
+                billing_cycle=self.billing_cycle,
+                billing_custom_days=self.billing_custom_days,
+                billing_renewal_at=self.billing_renewal_at,
+                billing_amount=self.billing_amount,
+                billing_currency=self.billing_currency,
+            )
+        return self
+
 
 class HostProxyToggle(BaseModel):
     is_proxy_enabled: bool
@@ -140,8 +170,6 @@ class HostHiddenToggle(BaseModel):
 
 
 class HostReorder(BaseModel):
-    """Ordered list of host IDs owned by the current user (full or subset)."""
-
     host_ids: list[UUID] = Field(min_length=1)
 
 
@@ -158,6 +186,14 @@ class HostRead(BaseModel):
     sort_order: int = 0
     is_hidden: bool = False
     is_proxy_enabled: bool
+    billing_enabled: bool = False
+    billing_cycle: BillingCycleLiteral | None = None
+    billing_custom_days: int | None = None
+    billing_renewal_at: date | None = None
+    billing_amount: Decimal | None = None
+    billing_currency: str | None = None
+    billing_auto_renew: bool = True
+    billing_notes: str | None = None
     tags: list[TagRead] = []
     agent: AgentStatusRead | None = None
     created_at: datetime
@@ -200,8 +236,6 @@ class TagUpdate(BaseModel):
 
 
 class HostTagsUpdate(BaseModel):
-    """Replace the full set of tags on a host (atomic sync)."""
-
     tag_ids: list[UUID] = Field(default_factory=list)
 
 

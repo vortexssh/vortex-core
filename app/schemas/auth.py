@@ -1,7 +1,10 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+
+from app.models.user import User
 
 
 class UserCreate(BaseModel):
@@ -24,12 +27,42 @@ class UserRead(BaseModel):
     is_2fa_enabled: bool
     is_email_verified: bool
     is_active: bool
+    preferred_currency: str = "USD"
+    telegram_linked: bool = False
     created_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_telegram_linked(cls, data: Any) -> Any:
+        if isinstance(data, User):
+            return {
+                "id": data.id,
+                "email": data.email,
+                "public_slug": data.public_slug,
+                "is_2fa_enabled": data.is_2fa_enabled,
+                "is_email_verified": data.is_email_verified,
+                "is_active": data.is_active,
+                "preferred_currency": data.preferred_currency,
+                "telegram_linked": data.telegram_chat_id is not None,
+                "created_at": data.created_at,
+            }
+        return data
 
 
 class UserUpdate(BaseModel):
     email: EmailStr | None = None
     public_slug: str | None = Field(default=None, max_length=64)
+    preferred_currency: str | None = Field(default=None, min_length=3, max_length=3)
+
+    @field_validator("preferred_currency")
+    @classmethod
+    def normalize_currency(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        code = value.strip().upper()
+        if len(code) != 3 or not code.isalpha():
+            raise ValueError("preferred_currency must be ISO-4217 alpha-3")
+        return code
 
 
 class TokenResponse(BaseModel):

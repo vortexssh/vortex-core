@@ -82,6 +82,16 @@ class HostService:
             is_hidden=payload.is_hidden,
             is_proxy_enabled=payload.is_proxy_enabled,
             sort_order=await self._hosts.next_sort_order(user_id),
+            billing_enabled=payload.billing_enabled,
+            billing_cycle=payload.billing_cycle,
+            billing_custom_days=payload.billing_custom_days,
+            billing_renewal_at=payload.billing_renewal_at,
+            billing_amount=payload.billing_amount,
+            billing_currency=payload.billing_currency,
+            billing_auto_renew=payload.billing_auto_renew
+            if payload.billing_auto_renew is not None
+            else True,
+            billing_notes=payload.billing_notes,
         )
         host = await self._hosts.create(host)
         await self._session.commit()

@@ -79,6 +79,19 @@ class Settings(BaseSettings):
         description="Optional MaxMind license key to auto-download GeoLite2 on startup",
     )
 
+    # FX (Frankfurter / ECB — no API key)
+    frankfurter_base_url: str = "https://api.frankfurter.app"
+    fx_cache_ttl_seconds: int = 43_200  # 12 hours
+
+    # Official Telegram bot (Core sends messages; bot process handles /start link)
+    telegram_bot_token: str = ""
+    telegram_bot_username: str = ""
+    telegram_bot_api_key: str = Field(
+        default="",
+        description="Shared secret for vortex-telegram-bot → Core internal API",
+    )
+    telegram_link_ttl_minutes: int = 10
+
     @property
     def is_development(self) -> bool:
         return self.app_env.lower() in {"development", "dev", "local"}
@@ -86,6 +99,10 @@ class Settings(BaseSettings):
     @property
     def smtp_configured(self) -> bool:
         return bool(self.smtp_host.strip())
+
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(self.telegram_bot_token.strip())
 
     @property
     def cors_origin_list(self) -> list[str]:

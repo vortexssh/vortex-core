@@ -1,4 +1,4 @@
-"""Core-side cron scheduler that dispatches task_run to online agents."""
+"""Core-side cron scheduler: agent tasks + daily billing reminders."""
 
 from __future__ import annotations
 
@@ -58,6 +58,17 @@ async def _tick_cron_tasks() -> None:
             logger.info("Cron dispatch task=%s sent=%s", task.id, sent)
 
 
+async def _tick_billing_daily() -> None:
+    from app.services.notifications import process_daily_billing
+
+    logger.info("Running daily billing tick")
+    async with AsyncSessionLocal() as session:
+        try:
+            await process_daily_billing(session)
+        except Exception:
+            logger.exception("Daily billing tick failed")
+
+
 def start_scheduler() -> None:
     if scheduler.running:
         return
@@ -69,8 +80,16 @@ def start_scheduler() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _tick_billing_daily,
+        CronTrigger(hour=6, minute=0),
+        id="vortex_billing_daily",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
-    logger.info("Task scheduler started")
+    logger.info("Task + billing scheduler started")
 
 
 def stop_scheduler() -> None:

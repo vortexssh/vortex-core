@@ -88,3 +88,41 @@ class HostRepository:
     async def set_tags(self, host: Host, tags: list[Tag]) -> Host:
         host.tags = list(tags)
         return await self.save(host)
+
+    async def list_billing_enabled(self) -> list[Host]:
+        result = await self._session.execute(
+            self._base_query().where(Host.billing_enabled.is_(True))
+        )
+        return list(result.scalars().unique().all())
+
+    async def list_billing_for_user(self, user_id: UUID) -> list[Host]:
+        result = await self._session.execute(
+            self._base_query().where(
+                Host.user_id == user_id,
+                Host.billing_enabled.is_(True),
+            )
+        )
+        return list(result.scalars().unique().all())
+
+    async def list_renewals_in_month(
+        self,
+        user_id: UUID,
+        *,
+        year: int,
+        month: int,
+    ) -> list[Host]:
+        from calendar import monthrange
+        from datetime import date
+
+        start = date(year, month, 1)
+        end = date(year, month, monthrange(year, month)[1])
+        result = await self._session.execute(
+            self._base_query().where(
+                Host.user_id == user_id,
+                Host.billing_enabled.is_(True),
+                Host.billing_renewal_at.is_not(None),
+                Host.billing_renewal_at >= start,
+                Host.billing_renewal_at <= end,
+            )
+        )
+        return list(result.scalars().unique().all())

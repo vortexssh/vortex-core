@@ -270,6 +270,9 @@ class AuthService:
                         },
                     )
 
+        if "preferred_currency" in data and data["preferred_currency"]:
+            user.preferred_currency = str(data["preferred_currency"]).upper()
+
         await self._users.save(user)
         await self._session.commit()
 

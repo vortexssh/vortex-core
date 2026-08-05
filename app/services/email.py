@@ -1,4 +1,4 @@
-"""Transactional email helpers (verification links)."""
+"""Transactional email helpers."""
 
 from __future__ import annotations
 
@@ -47,7 +47,6 @@ def build_verification_email(*, to_email: str, verify_url: str) -> EmailMessage:
 
 
 def _use_implicit_ssl(settings: Settings) -> bool:
-    """Port 465 is SMTPS (implicit TLS); 587 uses STARTTLS."""
     if settings.smtp_port == 465:
         return True
     return settings.smtp_use_ssl
@@ -75,6 +74,30 @@ def _send_smtp_sync(settings: Settings, message: EmailMessage) -> None:
         if settings.smtp_user:
             smtp.login(settings.smtp_user, settings.smtp_password)
         smtp.send_message(message)
+
+
+async def send_mail(
+    *,
+    to_email: str,
+    subject: str,
+    text: str,
+    html: str | None = None,
+) -> None:
+    settings = get_settings()
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = settings.smtp_from
+    message["To"] = to_email
+    message.set_content(text)
+    if html:
+        message.add_alternative(html, subtype="html")
+
+    if not settings.smtp_configured:
+        logger.warning("SMTP not configured — mail to %s: %s\n%s", to_email, subject, text)
+        return
+
+    await asyncio.to_thread(_send_smtp_sync, settings, message)
+    logger.info("Email sent to %s subject=%s", to_email, subject)
 
 
 async def send_verification_email(*, to_email: str, verify_url: str) -> None:
