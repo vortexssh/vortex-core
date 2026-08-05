@@ -65,6 +65,8 @@ class NotificationRead(BaseModel):
 class TelegramLinkResponse(BaseModel):
     code: str
     deep_link: str
+    # Opens Telegram Desktop / mobile; avoids t.me → telegram.org browser redirect.
+    tg_link: str
     expires_at: datetime
     bot_username: str | None = None
 

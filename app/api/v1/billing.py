@@ -93,7 +93,7 @@ async def patch_notification_settings(
 
 @router.get("/users/me/telegram", response_model=TelegramStatusRead)
 async def telegram_status(user: CurrentUser, session: DbSession) -> TelegramStatusRead:
-    return TelegramService(session).status_for(user)
+    return await TelegramService(session).status_for(user)
 
 
 @router.post("/users/me/telegram/link", response_model=TelegramLinkResponse)

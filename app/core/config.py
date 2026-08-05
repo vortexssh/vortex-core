@@ -85,6 +85,7 @@ class Settings(BaseSettings):
 
     # Official Telegram bot (Core sends messages; bot process handles /start link)
     telegram_bot_token: str = ""
+    # Optional override; if empty, username is resolved via getMe from the token.
     telegram_bot_username: str = ""
     telegram_bot_api_key: str = Field(
         default="",
