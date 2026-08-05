@@ -39,9 +39,10 @@ async def create_host(
     payload: HostCreate,
     user: CurrentUser,
     session: DbSession,
+    redis: RedisClient,
 ) -> HostRead:
     service = HostService(session)
-    host = await service.create_host(user.id, payload)
+    host = await service.create_host(user.id, payload, redis)
     return HostRead.model_validate(host)
 
 
@@ -73,9 +74,10 @@ async def update_host(
     payload: HostUpdate,
     user: CurrentUser,
     session: DbSession,
+    redis: RedisClient,
 ) -> HostRead:
     service = HostService(session)
-    host = await service.update_host(user.id, host_id, payload)
+    host = await service.update_host(user.id, host_id, payload, redis)
     return HostRead.model_validate(host)
 
 

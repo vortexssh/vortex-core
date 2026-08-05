@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketException, status
 from starlette.websockets import WebSocketDisconnect
 
 from app.core.config import get_settings
+from app.core.client_ip import websocket_client_ip
 from app.core.database import AsyncSessionLocal
 from app.core.rate_limit import rate_limiter
 from app.core.redis import get_redis_client
@@ -16,6 +17,7 @@ from app.repositories.api_key import ApiKeyRepository
 from app.repositories.host import HostRepository
 from app.repositories.user import UserRepository
 from app.services.agent import AgentService
+from app.services.host import HostService
 from app.services.task import TaskService
 from app.services.telemetry import TelemetryService
 from app.websocket.manager import connection_manager, pump_websocket_until_disconnect
@@ -56,7 +58,7 @@ async def agent_websocket(
     version: str | None = Query(default=None),
 ) -> None:
     settings = get_settings()
-    client = websocket.client.host if websocket.client else "unknown"
+    client = websocket_client_ip(websocket) or "unknown"
     try:
         rate_limiter.check(
             f"agent-connect:{client}",
@@ -78,6 +80,14 @@ async def agent_websocket(
     await websocket.accept()
     redis = get_redis_client()
     await connection_manager.bind_redis(redis)
+
+    peer_ip = websocket_client_ip(websocket)
+    if peer_ip:
+        async with AsyncSessionLocal() as session:
+            try:
+                await HostService(session).apply_geoip(host_id, peer_ip, redis)
+            except Exception:
+                logger.debug("GeoIP update failed for host %s", host_id, exc_info=True)
 
     async def on_presence(aid: UUID, online: bool, ver: str | None) -> None:
         async with AsyncSessionLocal() as session:

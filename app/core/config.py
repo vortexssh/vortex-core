@@ -66,6 +66,19 @@ class Settings(BaseSettings):
     # Force SMTP_SSL even when port is not 465
     smtp_use_ssl: bool = False
 
+    # GeoIP — country flags on hosts (agent connect IP or host ip_address)
+    geoip_enabled: bool = True
+    geoip_db_path: str = Field(
+        default="/app/data/GeoLite2-Country.mmdb",
+        description="Path to MaxMind GeoLite2-Country database",
+    )
+    geoip_http_fallback: bool = True
+    geoip_cache_ttl_seconds: int = 604_800  # 7 days
+    maxmind_license_key: str = Field(
+        default="",
+        description="Optional MaxMind license key to auto-download GeoLite2 on startup",
+    )
+
     @property
     def is_development(self) -> bool:
         return self.app_env.lower() in {"development", "dev", "local"}

@@ -49,12 +49,15 @@ services:
     ports:
       # Host :8000 is already used by another app on the VPS
       - "127.0.0.1:18000:8000"
+    volumes:
+      - vortex_geoip_data:/app/data
     networks:
       - vortex
 
 volumes:
   vortex_pg_data:
   vortex_redis_data:
+  vortex_geoip_data:
 
 networks:
   vortex:

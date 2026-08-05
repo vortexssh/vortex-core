@@ -96,6 +96,7 @@ docker-compose.yml
 1. **Zero-trust** — схемы hosts отвергают `password` / `private_key` / и т.п.
 2. **2FA** — dependency `require_2fa` на agent-facing REST и WS proxy/pty.
 3. **No DB metrics** — только Redis ключ `telemetry:{host_id}` с TTL.
+4. **GeoIP** — `hosts.country_code` заполняется по IP из карточки хоста (create/update) и при подключении агента. Нужен GeoLite2-Country (`MAXMIND_LICENSE_KEY`) или HTTP fallback.
 4. Секреты агентов и API keys — bcrypt hash; plaintext один раз при создании.
 
 ## Тесты

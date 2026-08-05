@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,7 +39,12 @@ class HostService:
             )
         return host
 
-    async def create_host(self, user_id: UUID, payload: HostCreate) -> Host:
+    async def create_host(
+        self,
+        user_id: UUID,
+        payload: HostCreate,
+        redis: Redis | None = None,
+    ) -> Host:
         host = Host(
             user_id=user_id,
             name=payload.name,
@@ -46,13 +52,14 @@ class HostService:
             port=payload.port,
             username=payload.username,
             notes=payload.notes,
-            country_code=payload.country_code,
+            country_code=None,
             is_hidden=payload.is_hidden,
             is_proxy_enabled=payload.is_proxy_enabled,
             sort_order=await self._hosts.next_sort_order(user_id),
         )
         host = await self._hosts.create(host)
         await self._session.commit()
+        await self._sync_country_from_ip(host.id, host.ip_address, redis)
         return await self.get_host(user_id, host.id)
 
     async def update_host(
@@ -60,14 +67,56 @@ class HostService:
         user_id: UUID,
         host_id: UUID,
         payload: HostUpdate,
+        redis: Redis | None = None,
     ) -> Host:
         host = await self.get_host(user_id, host_id)
         data = payload.model_dump(exclude_unset=True)
+        # country_code is derived from ip_address — ignore client overrides
+        data.pop("country_code", None)
         for key, value in data.items():
             setattr(host, key, value)
         await self._hosts.save(host)
         await self._session.commit()
+        await self._sync_country_from_ip(host_id, host.ip_address, redis)
         return await self.get_host(user_id, host_id)
+
+    async def _sync_country_from_ip(
+        self,
+        host_id: UUID,
+        ip: str | None,
+        redis: Redis | None = None,
+    ) -> None:
+        """Set or clear country_code from the host's configured IP (no agent required)."""
+        if not ip:
+            host = await self._hosts.get_by_id_any(host_id)
+            if host is not None and host.country_code is not None:
+                host.country_code = None
+                await self._hosts.save(host)
+                await self._session.commit()
+            return
+        await self.apply_geoip(host_id, str(ip), redis)
+
+    async def apply_geoip(
+        self,
+        host_id: UUID,
+        ip: str | None,
+        redis: Redis | None = None,
+    ) -> bool:
+        """Resolve country from IP and persist on host. Returns True if updated."""
+        if not ip:
+            return False
+        from app.services.geoip import lookup_country_code
+
+        code = await lookup_country_code(ip, redis)
+        if not code:
+            return False
+        host = await self._hosts.get_by_id_any(host_id)
+        if host is None or host.country_code == code:
+            return False
+        host.country_code = code
+        await self._hosts.save(host)
+        await self._session.commit()
+        return True
 
     async def set_proxy(
         self,
