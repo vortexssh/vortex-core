@@ -8,6 +8,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-vortex_core}
     volumes:
       - vortex_pg_data:/var/lib/postgresql/data
+    ports:
+      # Published for host-networked api (Docker bridge has no outbound route on this VPS).
+      - "127.0.0.1:15432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -22,6 +25,8 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - vortex_redis_data:/data
+    ports:
+      - "127.0.0.1:16379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -37,8 +42,9 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-vortex}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vortex_core}
-      REDIS_URL: redis://redis:6379/0
+      # Host network: reach DB/Redis via published localhost ports (not docker DNS names).
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-vortex}:${POSTGRES_PASSWORD}@127.0.0.1:15432/${POSTGRES_DB:-vortex_core}
+      REDIS_URL: redis://127.0.0.1:16379/0
       APP_ENV: production
       DEBUG: "false"
     depends_on:
@@ -46,20 +52,29 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      # Host :8000 is already used by another app on the VPS
-      - "127.0.0.1:18000:8000"
+    # Same stack as working curl/host — Docker bridge on this VPS cannot reach the internet
+    # (DNS upstream timeout + TCP "No route to host" to public IPs).
+    network_mode: host
     volumes:
       - vortex_geoip_data:/app/data
-    # Telegram / SMTP often fail with ENETUNREACH when Docker prefers broken IPv6.
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    sysctls:
-      - net.ipv6.conf.all.disable_ipv6=1
-      - net.ipv6.conf.default.disable_ipv6=1
-    networks:
-      - vortex
+    # nginx proxies api.vortex.timant32.ru → 127.0.0.1:18000
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "18000",
+        "--proxy-headers",
+        "--forwarded-allow-ips=*",
+      ]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
 
 volumes:
   vortex_pg_data:

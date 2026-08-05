@@ -35,8 +35,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
         username = await resolve_bot_username()
         logger.info(
-            "Telegram getMe: %s",
-            f"@{username}" if username else "FAILED (check Docker egress / token)",
+            "Telegram bot username: %s",
+            f"@{username}" if username else "FAILED (check egress / TELEGRAM_BOT_TOKEN)",
         )
 
     redis = await init_redis()
