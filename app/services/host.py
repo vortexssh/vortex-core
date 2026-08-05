@@ -25,19 +25,45 @@ class HostService:
         tag_id: UUID | None = None,
         offset: int = 0,
         limit: int = 50,
+        redis: Redis | None = None,
     ) -> list[Host]:
-        return await self._hosts.list_for_user(
+        hosts = await self._hosts.list_for_user(
             user_id, tag_id=tag_id, offset=offset, limit=limit
         )
+        await self.backfill_missing_geoip(hosts, redis)
+        return hosts
 
-    async def get_host(self, user_id: UUID, host_id: UUID) -> Host:
+    async def get_host(
+        self,
+        user_id: UUID,
+        host_id: UUID,
+        redis: Redis | None = None,
+    ) -> Host:
         host = await self._hosts.get_by_id(host_id, user_id)
         if host is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"code": "host_not_found", "message": "Host not found"},
             )
+        if host.country_code is None and host.ip_address:
+            await self.apply_geoip(host.id, str(host.ip_address), redis)
+            refreshed = await self._hosts.get_by_id(host_id, user_id)
+            return refreshed or host
         return host
+
+    async def backfill_missing_geoip(
+        self,
+        hosts: list[Host],
+        redis: Redis | None = None,
+    ) -> None:
+        """Fill country_code from stored public IP when missing (no agent required)."""
+        for host in hosts:
+            if host.country_code or not host.ip_address:
+                continue
+            await self.apply_geoip(host.id, str(host.ip_address), redis)
+            refreshed = await self._hosts.get_by_id_any(host.id)
+            if refreshed is not None and refreshed.country_code:
+                host.country_code = refreshed.country_code
 
     async def create_host(
         self,

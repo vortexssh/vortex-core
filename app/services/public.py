@@ -9,11 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.host import HostRepository
 from app.repositories.user import UserRepository
 from app.schemas.public import PublicHost, PublicStatusPage, PublicTelemetry
+from app.services.host import HostService
 from app.services.telemetry import TelemetryService
 
 
 class PublicStatusService:
     def __init__(self, session: AsyncSession, redis: Redis) -> None:
+        self._session = session
+        self._redis = redis
         self._users = UserRepository(session)
         self._hosts = HostRepository(session)
         self._telemetry = TelemetryService(redis)
@@ -28,6 +31,7 @@ class PublicStatusService:
             )
 
         hosts = await self._hosts.list_public_for_user(user.id)
+        await HostService(self._session).backfill_missing_geoip(hosts, self._redis)
         host_ids = [h.id for h in hosts]
         telemetry_list = await self._telemetry.get_many(host_ids)
         by_host: dict[UUID, PublicTelemetry] = {

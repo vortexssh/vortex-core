@@ -23,13 +23,14 @@ router = APIRouter(prefix="/hosts", tags=["hosts"])
 async def list_hosts(
     user: CurrentUser,
     session: DbSession,
+    redis: RedisClient,
     tag_id: UUID | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
 ) -> list[HostRead]:
     service = HostService(session)
     hosts = await service.list_hosts(
-        user.id, tag_id=tag_id, offset=offset, limit=limit
+        user.id, tag_id=tag_id, offset=offset, limit=limit, redis=redis
     )
     return [HostRead.model_validate(h) for h in hosts]
 
@@ -62,9 +63,10 @@ async def get_host(
     host_id: UUID,
     user: CurrentUser,
     session: DbSession,
+    redis: RedisClient,
 ) -> HostRead:
     service = HostService(session)
-    host = await service.get_host(user.id, host_id)
+    host = await service.get_host(user.id, host_id, redis)
     return HostRead.model_validate(host)
 
 

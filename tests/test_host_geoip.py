@@ -14,7 +14,7 @@ async def test_create_host_sets_country_from_ip(monkeypatch: pytest.MonkeyPatch)
     mock_host = MagicMock()
     mock_host.id = host_id
     mock_host.ip_address = "8.8.8.8"
-    mock_host.country_code = None
+    mock_host.country_code = "US"
 
     saved_hosts: list[MagicMock] = []
 
@@ -46,8 +46,8 @@ async def test_create_host_sets_country_from_ip(monkeypatch: pytest.MonkeyPatch)
     service._hosts = FakeHostRepo()
     service._tags = FakeTagRepo()
 
-    apply_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr(service, "apply_geoip", apply_mock)
+    sync_mock = AsyncMock()
+    monkeypatch.setattr(service, "_sync_country_from_ip", sync_mock)
 
     payload = HostCreate(
         name="dns",
@@ -57,7 +57,7 @@ async def test_create_host_sets_country_from_ip(monkeypatch: pytest.MonkeyPatch)
     result = await service.create_host(user_id, payload)
 
     assert result is mock_host
-    apply_mock.assert_awaited_once_with(host_id, "8.8.8.8", None)
+    sync_mock.assert_awaited_once_with(host_id, "8.8.8.8", None)
     assert saved_hosts[0].country_code is None
 
 
@@ -101,3 +101,37 @@ async def test_update_host_clears_country_when_ip_removed(
     )
 
     sync_mock.assert_awaited_once_with(host_id, None, None)
+
+
+@pytest.mark.asyncio
+async def test_list_hosts_backfills_missing_country(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user_id = uuid4()
+    host = MagicMock()
+    host.id = uuid4()
+    host.ip_address = "157.22.205.226"
+    host.country_code = None
+
+    class FakeHostRepo:
+        async def list_for_user(self, *_a, **_k):
+            return [host]
+
+        async def get_by_id_any(self, hid):
+            return host if hid == host.id else None
+
+        async def save(self, h):
+            return h
+
+    session = AsyncMock()
+    service = HostService(session)
+    service._hosts = FakeHostRepo()
+
+    async def fake_apply(host_id, ip, redis=None):
+        host.country_code = "RU"
+        return True
+
+    monkeypatch.setattr(service, "apply_geoip", fake_apply)
+
+    result = await service.list_hosts(user_id)
+    assert result[0].country_code == "RU"

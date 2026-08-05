@@ -94,13 +94,22 @@ async def lookup_country_code(ip: str, redis: Redis | None = None) -> str | None
     cache_key = f"geoip:{normalized}"
     if redis is not None:
         cached = await redis.get(cache_key)
-        if cached:
-            return str(cached)
+        if cached is not None:
+            return normalize_cached_country(str(cached))
 
     code = await asyncio.to_thread(_lookup_mmdb, normalized)
     if code is None:
         code = await _lookup_http(normalized)
 
-    if code and redis is not None:
-        await redis.set(cache_key, code, ex=settings.geoip_cache_ttl_seconds)
+    if redis is not None:
+        # Cache hits and misses so list backfill does not hammer the provider
+        ttl = settings.geoip_cache_ttl_seconds if code else min(3600, settings.geoip_cache_ttl_seconds)
+        await redis.set(cache_key, code or "-", ex=ttl)
+
     return code
+
+
+def normalize_cached_country(raw: str | None) -> str | None:
+    if not raw or raw == "-":
+        return None
+    return str(raw).upper()
