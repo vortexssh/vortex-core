@@ -40,6 +40,17 @@ class TaskService:
         )
         task = await self._tasks.create(task)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.TASK_CREATED,
+            title="Task created",
+            body=f"Scheduled task «{task.name}» was created.",
+            host_id=host_id,
+        )
         return task
 
     async def get(self, user_id: UUID, task_id: UUID) -> Task:
@@ -58,12 +69,36 @@ class TaskService:
             setattr(task, key, value)
         await self._tasks.save(task)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.TASK_UPDATED,
+            title="Task updated",
+            body=f"Scheduled task «{task.name}» was updated.",
+            host_id=task.host_id,
+        )
         return task
 
     async def delete(self, user_id: UUID, task_id: UUID) -> None:
         task = await self.get(user_id, task_id)
+        name = task.name
+        host_id = task.host_id
         await self._tasks.delete(task)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.TASK_DELETED,
+            title="Task deleted",
+            body=f"Scheduled task «{name}» was deleted.",
+            host_id=host_id,
+        )
 
     async def list_logs(self, user_id: UUID, task_id: UUID) -> list[TaskLog]:
         await self.get(user_id, task_id)

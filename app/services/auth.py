@@ -104,6 +104,16 @@ class AuthService:
                     detail={"code": "invalid_totp", "message": "Invalid TOTP code"},
                 )
         token = create_access_token(subject=user.id)
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user,
+            kind=NotificationKind.LOGIN,
+            title="New sign-in",
+            body=f"Someone signed in to your Vortex account ({user.email}).",
+        )
         return TokenResponse(access_token=token)
 
     async def verify_email(self, token: str) -> TokenResponse:
@@ -223,6 +233,16 @@ class AuthService:
         user.is_2fa_enabled = True
         await self._users.save(user)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user,
+            kind=NotificationKind.TWOFA_ENABLED,
+            title="2FA enabled",
+            body="Two-factor authentication was enabled on your Vortex account.",
+        )
         return user
 
     async def disable_2fa(self, user: User, code: str) -> User:
@@ -240,6 +260,16 @@ class AuthService:
         user.totp_secret = None
         await self._users.save(user)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user,
+            kind=NotificationKind.TWOFA_DISABLED,
+            title="2FA disabled",
+            body="Two-factor authentication was disabled on your Vortex account.",
+        )
         return user
 
     async def update_profile(self, user: User, payload: UserUpdate) -> User:
@@ -279,6 +309,16 @@ class AuthService:
         if "email" in data and not user.is_email_verified:
             await self._issue_and_send_verification(user)
 
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user,
+            kind=NotificationKind.PROFILE_UPDATED,
+            title="Profile updated",
+            body="Your Vortex profile settings were changed.",
+        )
         return user
 
     async def change_password(
@@ -315,6 +355,16 @@ class AuthService:
         user.password_hash = hash_password(new_password)
         await self._users.save(user)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user,
+            kind=NotificationKind.PASSWORD_CHANGED,
+            title="Password changed",
+            body="Your Vortex account password was changed.",
+        )
 
 
 def _normalize_public_slug(value: str | None) -> str | None:

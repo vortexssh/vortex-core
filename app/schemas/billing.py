@@ -26,6 +26,26 @@ class NotificationSettingsRead(BaseModel):
     client_enabled: bool
     reminder_offsets_days: list[int]
     billing_reminders_enabled: bool
+    notify_login: bool
+    notify_password_changed: bool
+    notify_2fa_enabled: bool
+    notify_2fa_disabled: bool
+    notify_profile_updated: bool
+    notify_telegram_linked: bool
+    notify_telegram_unlinked: bool
+    notify_host_created: bool
+    notify_host_updated: bool
+    notify_host_deleted: bool
+    notify_agent_created: bool
+    notify_agent_rotated: bool
+    notify_agent_revoked: bool
+    notify_api_key_created: bool
+    notify_api_key_deleted: bool
+    notify_task_created: bool
+    notify_task_updated: bool
+    notify_task_deleted: bool
+    notify_billing_advanced: bool
+    notify_billing_auto_renewed: bool
 
 
 class NotificationSettingsUpdate(BaseModel):
@@ -35,6 +55,26 @@ class NotificationSettingsUpdate(BaseModel):
     client_enabled: bool | None = None
     reminder_offsets_days: list[int] | None = None
     billing_reminders_enabled: bool | None = None
+    notify_login: bool | None = None
+    notify_password_changed: bool | None = None
+    notify_2fa_enabled: bool | None = None
+    notify_2fa_disabled: bool | None = None
+    notify_profile_updated: bool | None = None
+    notify_telegram_linked: bool | None = None
+    notify_telegram_unlinked: bool | None = None
+    notify_host_created: bool | None = None
+    notify_host_updated: bool | None = None
+    notify_host_deleted: bool | None = None
+    notify_agent_created: bool | None = None
+    notify_agent_rotated: bool | None = None
+    notify_agent_revoked: bool | None = None
+    notify_api_key_created: bool | None = None
+    notify_api_key_deleted: bool | None = None
+    notify_task_created: bool | None = None
+    notify_task_updated: bool | None = None
+    notify_task_deleted: bool | None = None
+    notify_billing_advanced: bool | None = None
+    notify_billing_auto_renewed: bool | None = None
 
     @field_validator("reminder_offsets_days")
     @classmethod

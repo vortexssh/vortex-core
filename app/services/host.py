@@ -96,6 +96,17 @@ class HostService:
         host = await self._hosts.create(host)
         await self._session.commit()
         await self._sync_country_from_ip(host.id, host.ip_address, redis)
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.HOST_CREATED,
+            title="Host added",
+            body=f"Host «{host.name}» was added to your panel.",
+            host_id=host.id,
+        )
         return await self.get_host(user_id, host.id)
 
     async def update_host(
@@ -114,6 +125,17 @@ class HostService:
         await self._hosts.save(host)
         await self._session.commit()
         await self._sync_country_from_ip(host_id, host.ip_address, redis)
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.HOST_UPDATED,
+            title="Host updated",
+            body=f"Host «{host.name}» was updated.",
+            host_id=host.id,
+        )
         return await self.get_host(user_id, host_id)
 
     async def _sync_country_from_ip(
@@ -205,8 +227,19 @@ class HostService:
 
     async def delete_host(self, user_id: UUID, host_id: UUID) -> None:
         host = await self.get_host(user_id, host_id)
+        name = host.name
         await self._hosts.delete(host)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.HOST_DELETED,
+            title="Host deleted",
+            body=f"Host «{name}» was removed from your panel.",
+        )
 
     async def attach_tag(
         self,

@@ -135,11 +135,32 @@ class TelegramService:
         await self._users.save(user)
         await self._codes.save(row)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user,
+            kind=NotificationKind.TELEGRAM_LINKED,
+            title="Telegram linked",
+            body="Your Telegram chat was linked to Vortex for notifications.",
+        )
 
     async def unlink(self, user_id: UUID) -> None:
         user = await self._users.get_by_id(user_id)
         if user is None:
             return
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        # Notify while chat_id still set so Telegram can receive the goodbye.
+        await notify_user(
+            self._session,
+            user,
+            kind=NotificationKind.TELEGRAM_UNLINKED,
+            title="Telegram unlinked",
+            body="Your Telegram chat was unlinked from Vortex.",
+        )
         user.telegram_chat_id = None
         user.telegram_linked_at = None
         await self._users.save(user)

@@ -1,15 +1,16 @@
-"""In-app notifications + multi-channel billing reminders."""
+"""In-app notifications + multi-channel activity / billing alerts."""
 
 from __future__ import annotations
 
 import logging
+import secrets
 from datetime import date
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.billing import NotificationKind
+from app.models.billing import KIND_SETTING_ATTR, NotificationKind
 from app.models.host import Host
 from app.models.notification import Notification, UserNotificationSettings
 from app.models.user import User
@@ -77,44 +78,37 @@ class NotificationService:
         await self._session.commit()
         return count
 
-    async def emit_billing_reminder(
+    async def emit_activity(
         self,
         user: User,
-        host: Host,
         *,
-        days_until: int,
-        settings: UserNotificationSettings,
+        kind: NotificationKind | str,
+        title: str,
+        body: str,
+        host_id: UUID | None = None,
+        dedupe_key: str | None = None,
+        payload: dict | None = None,
+        settings: UserNotificationSettings | None = None,
     ) -> None:
-        if not settings.billing_reminders_enabled:
-            return
-        if not host.billing_renewal_at:
+        """Fan-out to enabled channels if the per-event toggle is on."""
+        kind_value = str(kind)
+        settings = settings or await self._settings.get_or_create(user.id)
+        attr = KIND_SETTING_ATTR.get(kind_value)
+        if attr is not None and not bool(getattr(settings, attr, True)):
             return
 
-        due = host.billing_renewal_at.isoformat()
-        dedupe = f"{due}:{days_until}"
-        title = f"Renewal: {host.name}"
-        when = (
-            "today"
-            if days_until == 0
-            else f"in {days_until} day{'s' if days_until != 1 else ''}"
-        )
-        amount = ""
-        if host.billing_amount is not None and host.billing_currency:
-            amount = f" ({host.billing_amount} {host.billing_currency})"
-        body = f"Host «{host.name}» renews {when} on {due}{amount}."
+        key = dedupe_key or secrets.token_hex(8)
 
-        # in_app + client share the same inbox row
         if settings.in_app_enabled or settings.client_enabled:
             await self._create_inbox(
                 user_id=user.id,
-                host_id=host.id,
-                kind=NotificationKind.BILLING_REMINDER,
+                host_id=host_id,
+                kind=kind_value,
                 title=title,
                 body=body,
-                dedupe_key=dedupe,
+                dedupe_key=key,
                 payload={
-                    "days_until": days_until,
-                    "renewal_at": due,
+                    **(payload or {}),
                     "channels": {
                         "in_app": settings.in_app_enabled,
                         "client": settings.client_enabled,
@@ -130,42 +124,63 @@ class NotificationService:
                     text=body,
                     html=(
                         f"<p style='font-family:sans-serif;color:#e5e7eb;background:#0a0a0a;"
-                        f"padding:16px'>{body}<br/><a href='#' style='color:#39ff14'>Open Vortex</a></p>"
+                        f"padding:16px'>{body}</p>"
                     ),
                 )
             except Exception:
-                logger.exception("Billing reminder email failed for %s", user.email)
+                logger.exception("Activity email failed for %s (%s)", user.email, kind_value)
 
         if settings.telegram_enabled and user.telegram_chat_id:
-            await self._telegram.send_message(user.telegram_chat_id, f"<b>{title}</b>\n{body}")
+            await self._telegram.send_message(
+                user.telegram_chat_id, f"<b>{title}</b>\n{body}"
+            )
+
+    async def emit_billing_reminder(
+        self,
+        user: User,
+        host: Host,
+        *,
+        days_until: int,
+        settings: UserNotificationSettings,
+    ) -> None:
+        if not host.billing_renewal_at:
+            return
+
+        due = host.billing_renewal_at.isoformat()
+        when = (
+            "today"
+            if days_until == 0
+            else f"in {days_until} day{'s' if days_until != 1 else ''}"
+        )
+        amount = ""
+        if host.billing_amount is not None and host.billing_currency:
+            amount = f" ({host.billing_amount} {host.billing_currency})"
+        body = f"Host «{host.name}» renews {when} on {due}{amount}."
+
+        await self.emit_activity(
+            user,
+            kind=NotificationKind.BILLING_REMINDER,
+            title=f"Renewal: {host.name}",
+            body=body,
+            host_id=host.id,
+            dedupe_key=f"{due}:{days_until}",
+            payload={"days_until": days_until, "renewal_at": due},
+            settings=settings,
+        )
 
     async def emit_auto_renewed(self, user: User, host: Host) -> None:
         settings = await self._settings.get_or_create(user.id)
         due = host.billing_renewal_at.isoformat() if host.billing_renewal_at else "?"
-        title = f"Auto-renewed: {host.name}"
-        body = f"Host «{host.name}» was advanced to the next period (next due {due})."
-        dedupe = f"auto:{due}"
-        if settings.in_app_enabled or settings.client_enabled:
-            await self._create_inbox(
-                user_id=user.id,
-                host_id=host.id,
-                kind=NotificationKind.BILLING_AUTO_RENEWED,
-                title=title,
-                body=body,
-                dedupe_key=dedupe,
-                payload={"renewal_at": due},
-            )
-        if settings.telegram_enabled and user.telegram_chat_id:
-            await self._telegram.send_message(user.telegram_chat_id, f"<b>{title}</b>\n{body}")
-        if settings.email_enabled:
-            try:
-                await send_mail(
-                    to_email=user.email,
-                    subject=f"[Vortex] {title}",
-                    text=body,
-                )
-            except Exception:
-                logger.exception("Auto-renew email failed")
+        await self.emit_activity(
+            user,
+            kind=NotificationKind.BILLING_AUTO_RENEWED,
+            title=f"Auto-renewed: {host.name}",
+            body=f"Host «{host.name}» was advanced to the next period (next due {due}).",
+            host_id=host.id,
+            dedupe_key=f"auto:{due}",
+            payload={"renewal_at": due},
+            settings=settings,
+        )
 
     async def _create_inbox(
         self,
@@ -195,6 +210,33 @@ class NotificationService:
             return row
         except IntegrityError:
             return None
+
+
+async def notify_user(
+    session: AsyncSession,
+    user: User | UUID,
+    *,
+    kind: NotificationKind | str,
+    title: str,
+    body: str,
+    host_id: UUID | None = None,
+) -> None:
+    """Best-effort activity notify — never raises into the caller."""
+    try:
+        if isinstance(user, UUID):
+            resolved = await UserRepository(session).get_by_id(user)
+            if resolved is None:
+                return
+            user = resolved
+        await NotificationService(session).emit_activity(
+            user,
+            kind=kind,
+            title=title,
+            body=body,
+            host_id=host_id,
+        )
+    except Exception:
+        logger.exception("notify_user failed kind=%s", kind)
 
 
 async def process_daily_billing(session: AsyncSession) -> None:

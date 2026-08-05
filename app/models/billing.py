@@ -21,6 +21,51 @@ class BillingCycle(StrEnum):
 class NotificationKind(StrEnum):
     BILLING_REMINDER = "billing_reminder"
     BILLING_AUTO_RENEWED = "billing_auto_renewed"
+    LOGIN = "login"
+    PASSWORD_CHANGED = "password_changed"
+    TWOFA_ENABLED = "2fa_enabled"
+    TWOFA_DISABLED = "2fa_disabled"
+    PROFILE_UPDATED = "profile_updated"
+    TELEGRAM_LINKED = "telegram_linked"
+    TELEGRAM_UNLINKED = "telegram_unlinked"
+    HOST_CREATED = "host_created"
+    HOST_UPDATED = "host_updated"
+    HOST_DELETED = "host_deleted"
+    AGENT_CREATED = "agent_created"
+    AGENT_ROTATED = "agent_rotated"
+    AGENT_REVOKED = "agent_revoked"
+    API_KEY_CREATED = "api_key_created"
+    API_KEY_DELETED = "api_key_deleted"
+    TASK_CREATED = "task_created"
+    TASK_UPDATED = "task_updated"
+    TASK_DELETED = "task_deleted"
+    BILLING_ADVANCED = "billing_advanced"
+
+
+# Maps kind → UserNotificationSettings boolean column
+KIND_SETTING_ATTR: dict[str, str] = {
+    NotificationKind.BILLING_REMINDER: "billing_reminders_enabled",
+    NotificationKind.BILLING_AUTO_RENEWED: "notify_billing_auto_renewed",
+    NotificationKind.LOGIN: "notify_login",
+    NotificationKind.PASSWORD_CHANGED: "notify_password_changed",
+    NotificationKind.TWOFA_ENABLED: "notify_2fa_enabled",
+    NotificationKind.TWOFA_DISABLED: "notify_2fa_disabled",
+    NotificationKind.PROFILE_UPDATED: "notify_profile_updated",
+    NotificationKind.TELEGRAM_LINKED: "notify_telegram_linked",
+    NotificationKind.TELEGRAM_UNLINKED: "notify_telegram_unlinked",
+    NotificationKind.HOST_CREATED: "notify_host_created",
+    NotificationKind.HOST_UPDATED: "notify_host_updated",
+    NotificationKind.HOST_DELETED: "notify_host_deleted",
+    NotificationKind.AGENT_CREATED: "notify_agent_created",
+    NotificationKind.AGENT_ROTATED: "notify_agent_rotated",
+    NotificationKind.AGENT_REVOKED: "notify_agent_revoked",
+    NotificationKind.API_KEY_CREATED: "notify_api_key_created",
+    NotificationKind.API_KEY_DELETED: "notify_api_key_deleted",
+    NotificationKind.TASK_CREATED: "notify_task_created",
+    NotificationKind.TASK_UPDATED: "notify_task_updated",
+    NotificationKind.TASK_DELETED: "notify_task_deleted",
+    NotificationKind.BILLING_ADVANCED: "notify_billing_advanced",
+}
 
 
 def add_billing_period(

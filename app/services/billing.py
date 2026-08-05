@@ -85,6 +85,22 @@ class BillingService:
         await self._session.commit()
         refreshed = await self._hosts.get_by_id(host_id, user_id)
         assert refreshed is not None
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        due = (
+            refreshed.billing_renewal_at.isoformat()
+            if refreshed.billing_renewal_at
+            else "?"
+        )
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.BILLING_ADVANCED,
+            title=f"Billing advanced: {refreshed.name}",
+            body=f"Host «{refreshed.name}» billing period was advanced (next due {due}).",
+            host_id=host_id,
+        )
         return refreshed
 
     async def auto_advance_if_due(self, host: Host) -> bool:

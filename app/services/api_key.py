@@ -29,6 +29,16 @@ class ApiKeyService:
         )
         api_key = await self._repo.create(api_key)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.API_KEY_CREATED,
+            title="API key created",
+            body=f"API key «{api_key.name}» was created ({api_key.key_prefix}…).",
+        )
         return ApiKeyCreated(
             id=api_key.id,
             name=api_key.name,
@@ -45,5 +55,16 @@ class ApiKeyService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"code": "api_key_not_found", "message": "API key not found"},
             )
+        name = api_key.name
         await self._repo.delete(api_key)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.API_KEY_DELETED,
+            title="API key deleted",
+            body=f"API key «{name}» was deleted.",
+        )

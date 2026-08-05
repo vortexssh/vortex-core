@@ -37,6 +37,17 @@ class AgentService:
         agent = Agent(host_id=host_id, secret_hash=hash_secret(raw))
         agent = await self._agents.create(agent)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.AGENT_CREATED,
+            title="Agent enrolled",
+            body=f"A new agent was enrolled for host «{host.name}».",
+            host_id=host_id,
+        )
         return AgentCreated(
             id=agent.id,
             host_id=agent.host_id,
@@ -61,12 +72,34 @@ class AgentService:
         agent.is_online = False
         await self._agents.save(agent)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.AGENT_ROTATED,
+            title="Agent secret rotated",
+            body="Agent credentials were rotated — reinstall with the new secret.",
+            host_id=host_id,
+        )
         return AgentRotateResponse(id=agent.id, host_id=agent.host_id, secret=raw)
 
     async def revoke(self, user_id: UUID, host_id: UUID) -> None:
         agent = await self.get_for_host(user_id, host_id)
         await self._agents.delete(agent)
         await self._session.commit()
+        from app.models.billing import NotificationKind
+        from app.services.notifications import notify_user
+
+        await notify_user(
+            self._session,
+            user_id,
+            kind=NotificationKind.AGENT_REVOKED,
+            title="Agent revoked",
+            body="An agent was revoked from one of your hosts.",
+            host_id=host_id,
+        )
 
     async def set_online(
         self,
