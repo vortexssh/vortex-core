@@ -82,8 +82,8 @@ class Settings(BaseSettings):
         description="Optional MaxMind license key to auto-download GeoLite2 on startup",
     )
 
-    # FX (Frankfurter / ECB — no API key)
-    frankfurter_base_url: str = "https://api.frankfurter.app"
+    # FX (Frankfurter v2 — multi-provider; includes RUB via CBR)
+    frankfurter_base_url: str = "https://api.frankfurter.dev"
     fx_cache_ttl_seconds: int = 43_200  # 12 hours
 
     # Official Telegram bot (Core sends messages; bot process handles /start link)

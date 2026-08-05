@@ -1,19 +1,31 @@
-"""Frankfurter (ECB) FX rates with Redis cache."""
+"""Frankfurter FX rates (v2 multi-provider, includes RUB via CBR) + Redis cache."""
 
 from __future__ import annotations
 
 import logging
 from decimal import Decimal, ROUND_HALF_UP
 from typing import TYPE_CHECKING
-
-import httpx
+from urllib.parse import urlparse
 
 from app.core.config import get_settings
+from app.services.http_out import outbound_client
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
+
+
+def _api_root(raw: str) -> str:
+    """Normalize to api.frankfurter.dev root (strip legacy /v1 paths)."""
+    value = raw.strip().rstrip("/")
+    # Legacy host had no RUB (ECB-only). Prefer the multi-provider public API.
+    if "frankfurter.app" in value:
+        return "https://api.frankfurter.dev"
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return value
 
 
 class FxService:
@@ -67,22 +79,26 @@ class FxService:
         return rate
 
     async def _fetch_rate(self, src: str, dst: str) -> Decimal | None:
-        base = self._settings.frankfurter_base_url.rstrip("/")
-        url = f"{base}/latest"
+        root = _api_root(self._settings.frankfurter_base_url)
+        # v2 single-pair: {"date","base","quote","rate"} — covers RUB via CBR blend.
+        url = f"{root}/v2/rate/{src}/{dst}"
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url, params={"from": src, "to": dst})
+            async with outbound_client(timeout=10.0) as client:
+                response = await client.get(url)
                 if response.status_code != 200:
-                    logger.debug(
-                        "Frankfurter %s→%s status %s", src, dst, response.status_code
+                    logger.warning(
+                        "Frankfurter %s→%s status %s body=%s",
+                        src,
+                        dst,
+                        response.status_code,
+                        response.text[:120],
                     )
                     return None
                 data = response.json()
-            rates = data.get("rates") or {}
-            raw = rates.get(dst)
+            raw = data.get("rate")
             if raw is None:
                 return None
             return Decimal(str(raw))
         except Exception:
-            logger.debug("Frankfurter lookup failed %s→%s", src, dst, exc_info=True)
+            logger.warning("Frankfurter lookup failed %s→%s", src, dst, exc_info=True)
             return None
