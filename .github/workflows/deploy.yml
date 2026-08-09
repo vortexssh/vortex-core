@@ -16,6 +16,11 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             cd /opt/vortex-core
-            git pull origin master
+            # Discard local hotfixes so CI pull never blocks (deploy is source-of-truth = origin/master)
+            git fetch origin master
+            git reset --hard origin/master
+            docker builder prune -f || true
+            docker image prune -f || true
             docker compose up -d --build
