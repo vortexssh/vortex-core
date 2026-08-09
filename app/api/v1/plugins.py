@@ -1,9 +1,13 @@
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DbSession, RedisClient
 from app.schemas.plugin import (
+    PluginDailyMetricsList,
+    PluginDailyMetricsUpsert,
+    PluginDaemonBindingRead,
     PluginDaemonStatePush,
     PluginHostBindingRead,
     PluginHostBindingUpsert,
@@ -21,6 +25,18 @@ from app.services.plugin import PluginService
 from app.services.plugin_state import PluginStateService
 
 router = APIRouter(prefix="/plugins", tags=["plugins"])
+
+
+def _require_daemon_token(token: str | None) -> str:
+    if not token or not token.startswith("vxp_"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "invalid_daemon_token",
+                "message": "X-Plugin-Token required",
+            },
+        )
+    return token
 
 
 @router.get("", response_model=list[PluginInstallRead])
@@ -147,6 +163,26 @@ async def call_rpc(
     return await PluginService(session).rpc(user.id, install_id, method, payload)
 
 
+@router.get("/{install_id}/metrics/daily", response_model=PluginDailyMetricsList)
+async def list_daily_metrics(
+    install_id: UUID,
+    user: CurrentUser,
+    session: DbSession,
+    metric: str = Query(default="energy_kwh", min_length=1, max_length=64),
+    host_id: UUID | None = Query(default=None),
+    from_day: date = Query(alias="from"),
+    to_day: date = Query(alias="to"),
+) -> PluginDailyMetricsList:
+    return await PluginService(session).list_daily_metrics(
+        user.id,
+        install_id,
+        metric=metric,
+        day_from=from_day,
+        day_to=to_day,
+        host_id=host_id,
+    )
+
+
 @router.post(
     "/{install_id}/daemon/state",
     response_model=PluginStateRead,
@@ -158,16 +194,40 @@ async def daemon_push_state(
     redis: RedisClient,
     x_plugin_token: str | None = Header(default=None, alias="X-Plugin-Token"),
 ) -> PluginStateRead:
-    if not x_plugin_token or not x_plugin_token.startswith("vxp_"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "code": "invalid_daemon_token",
-                "message": "X-Plugin-Token required",
-            },
-        )
+    token = _require_daemon_token(x_plugin_token)
     service = PluginService(session)
-    install = await service.authenticate_daemon(install_id, x_plugin_token)
+    install = await service.authenticate_daemon(install_id, token)
     return await service.daemon_push_state(
         install, payload, PluginStateService(redis)
     )
+
+
+@router.get(
+    "/{install_id}/daemon/bindings",
+    response_model=list[PluginDaemonBindingRead],
+)
+async def daemon_list_bindings(
+    install_id: UUID,
+    session: DbSession,
+    x_plugin_token: str | None = Header(default=None, alias="X-Plugin-Token"),
+) -> list[PluginDaemonBindingRead]:
+    token = _require_daemon_token(x_plugin_token)
+    service = PluginService(session)
+    install = await service.authenticate_daemon(install_id, token)
+    return await service.daemon_list_bindings(install)
+
+
+@router.post(
+    "/{install_id}/daemon/metrics/daily",
+    response_model=PluginDailyMetricsList,
+)
+async def daemon_upsert_daily_metrics(
+    install_id: UUID,
+    payload: PluginDailyMetricsUpsert,
+    session: DbSession,
+    x_plugin_token: str | None = Header(default=None, alias="X-Plugin-Token"),
+) -> PluginDailyMetricsList:
+    token = _require_daemon_token(x_plugin_token)
+    service = PluginService(session)
+    install = await service.authenticate_daemon(install_id, token)
+    return await service.daemon_upsert_daily_metrics(install, payload)

@@ -44,9 +44,11 @@ Vortex Core и Web — общий продукт. Уникальные инте�
 
 - Выполнять произвольный код внутри Core или Web.
 - Читать SSH-пароли / приватные ключи пользователей (zero-trust).
-- Писать телеметрию плагина в PostgreSQL (только Redis).
+- Писать **live**-телеметрию плагина в PostgreSQL (live → только Redis).
 - Видеть installs других пользователей.
 - Обходить JWT / 2FA пользователя на user-facing API.
+
+**Исключение для истории:** дневные агрегаты (`POST …/daemon/metrics/daily`) пишутся в PostgreSQL (`plugin_daily_metrics`) — для календарей и публичных страниц без онлайн-демона. Live state по-прежнему только Redis.
 
 Секреты интеграций (токены HA, MQTT, API keys третьих сторон) остаются **только на машине демона**.
 
@@ -445,6 +447,38 @@ WSS {core}/ws/plugin/{install_id}?token={vxp_…}
 3. На каждый `rpc_request` — обработать и ответить тем же `request_id`.
 4. После RPC часто имеет смысл сразу запушить обновлённый state.
 
+### 10.1b. Bindings list (daemon)
+
+```http
+GET /api/v1/plugins/{install_id}/daemon/bindings
+X-Plugin-Token: vxp_…
+```
+
+Ответ: `[{ "host_id": "…", "config": { "entity_id": "sensor.…" } }, …]`.  
+Используйте это вместо дублирования mapping в локальном файле.
+
+### 10.1c. Daily metrics upsert (PostgreSQL)
+
+```http
+POST /api/v1/plugins/{install_id}/daemon/metrics/daily
+X-Plugin-Token: vxp_…
+Content-Type: application/json
+
+{
+  "samples": [
+    {
+      "host_id": "<uuid>",
+      "metric": "energy_kwh",
+      "day": "2026-08-10",
+      "value": 1.234
+    }
+  ]
+}
+```
+
+Upsert по `(install_id, host_id, metric, day)`. Нужен permission `state.write`.  
+Пользователь читает: `GET …/metrics/daily?from=YYYY-MM-DD&to=YYYY-MM-DD&host_id=&metric=energy_kwh`.
+
 ### 10.2. State push (HTTPS)
 
 ```http
@@ -602,6 +636,7 @@ http.post(
 |--------|------|
 | Спека v1 | [`PLUGIN_SPEC.md`](../PLUGIN_SPEC.md) |
 | Fake Metrics | [`examples/fake-metrics-plugin/`](../examples/fake-metrics-plugin/) |
+| HA Power (local) | [`../../vortex-plugin-ha-power/`](../../vortex-plugin-ha-power/) |
 | SDK helpers | [`examples/fake-metrics-plugin/vortex_plugin_sdk.py`](../examples/fake-metrics-plugin/vortex_plugin_sdk.py) |
 | Core router | `app/api/v1/plugins.py` |
 | WS handler | `app/websocket/routes.py` (`/ws/plugin/...`) |

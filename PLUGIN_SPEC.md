@@ -114,7 +114,20 @@ Core → Daemon: `connected`, `rpc_request` `{ request_id, method, params, host_
 - `plugin:{install_id}:host:{host_id}:state`
 - optional history lists via `history_key`
 
-Plugin telemetry/state is **never** written to PostgreSQL.
+**Live** plugin telemetry stays in Redis only.
+
+### Daily aggregates (PostgreSQL)
+
+Day-bucketed metrics for calendars / public pages (daemon write, user/public read):
+
+| Method | Path | Auth |
+|--------|------|------|
+| GET | `/api/v1/plugins/{install_id}/daemon/bindings` | `X-Plugin-Token` |
+| POST | `/api/v1/plugins/{install_id}/daemon/metrics/daily` | `X-Plugin-Token` body `{ samples: [{ host_id, metric, day, value, meta? }] }` |
+| GET | `/api/v1/plugins/{install_id}/metrics/daily?metric=&host_id=&from=&to=` | user JWT |
+
+Table `plugin_daily_metrics` — unique `(install_id, host_id, metric, day)`.  
+Example metric: `energy_kwh`.
 
 ## Compatibility
 

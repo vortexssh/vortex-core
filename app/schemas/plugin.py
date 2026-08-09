@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -208,3 +208,35 @@ class PluginUiContributionResolved(BaseModel):
 class PluginUiBundle(BaseModel):
     installs: list[PluginInstallRead]
     contributions: list[PluginUiContributionResolved]
+
+
+class PluginDaemonBindingRead(BaseModel):
+    host_id: UUID
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class PluginDailySample(BaseModel):
+    host_id: UUID | None = None
+    metric: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_]+$")
+    day: date
+    value: float
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class PluginDailyMetricsUpsert(BaseModel):
+    samples: list[PluginDailySample] = Field(min_length=1, max_length=500)
+
+
+class PluginDailyMetricRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    install_id: UUID
+    host_id: UUID | None
+    metric: str
+    day: date
+    value: float
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class PluginDailyMetricsList(BaseModel):
+    samples: list[PluginDailyMetricRead] = Field(default_factory=list)

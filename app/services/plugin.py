@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 from uuid import UUID
 
@@ -10,7 +11,12 @@ from app.core.security import generate_plugin_token, hash_secret, verify_secret
 from app.models.plugin import PluginHostBinding, PluginInstall
 from app.repositories.host import HostRepository
 from app.repositories.plugin import PluginRepository
+from app.repositories.plugin_metrics import PluginMetricsRepository
 from app.schemas.plugin import (
+    PluginDailyMetricRead,
+    PluginDailyMetricsList,
+    PluginDailyMetricsUpsert,
+    PluginDaemonBindingRead,
     PluginDaemonStatePush,
     PluginHostBindingRead,
     PluginHostBindingUpsert,
@@ -39,6 +45,7 @@ class PluginService:
         self._session = session
         self._repo = PluginRepository(session)
         self._hosts = HostRepository(session)
+        self._metrics = PluginMetricsRepository(session)
 
     async def list_installs(self, user_id: UUID) -> list[PluginInstallRead]:
         rows = await self._repo.list_for_user(user_id)
@@ -322,6 +329,97 @@ class PluginService:
         install.is_daemon_online = online
         await self._repo.save(install)
         await self._session.commit()
+
+    async def daemon_list_bindings(
+        self,
+        install: PluginInstall,
+    ) -> list[PluginDaemonBindingRead]:
+        rows = await self._repo.list_bindings(install.id)
+        return [
+            PluginDaemonBindingRead(host_id=b.host_id, config=b.config or {})
+            for b in rows
+        ]
+
+    async def daemon_upsert_daily_metrics(
+        self,
+        install: PluginInstall,
+        payload: PluginDailyMetricsUpsert,
+    ) -> PluginDailyMetricsList:
+        manifest = parse_manifest(install.manifest)
+        if "state.write" not in manifest.permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "permission_denied",
+                    "message": "Plugin does not have state.write permission",
+                },
+            )
+        out: list[PluginDailyMetricRead] = []
+        for sample in payload.samples:
+            if sample.host_id is not None:
+                host = await self._hosts.get_by_id(sample.host_id, install.user_id)
+                if host is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={
+                            "code": "host_not_found",
+                            "message": f"Host not found: {sample.host_id}",
+                        },
+                    )
+            await self._metrics.upsert_sample(
+                install_id=install.id,
+                host_id=sample.host_id,
+                metric=sample.metric,
+                day=sample.day,
+                value=sample.value,
+                meta=sample.meta,
+            )
+            out.append(
+                PluginDailyMetricRead(
+                    install_id=install.id,
+                    host_id=sample.host_id,
+                    metric=sample.metric,
+                    day=sample.day,
+                    value=sample.value,
+                    meta=sample.meta,
+                )
+            )
+        await self._session.commit()
+        return PluginDailyMetricsList(samples=out)
+
+    async def list_daily_metrics(
+        self,
+        user_id: UUID,
+        install_id: UUID,
+        *,
+        metric: str,
+        day_from: date,
+        day_to: date,
+        host_id: UUID | None = None,
+    ) -> PluginDailyMetricsList:
+        await self._require_install(user_id, install_id)
+        if host_id is not None:
+            host = await self._hosts.get_by_id(host_id, user_id)
+            if host is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"code": "host_not_found", "message": "Host not found"},
+                )
+        if day_to < day_from:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_range", "message": "`to` must be >= `from`"},
+            )
+        rows = await self._metrics.list_range(
+            install_id=install_id,
+            metric=metric,
+            day_from=day_from,
+            day_to=day_to,
+            host_id=host_id,
+        )
+        return PluginDailyMetricsList(
+            samples=[PluginDailyMetricRead.model_validate(r) for r in rows]
+        )
 
     async def _require_install(
         self,

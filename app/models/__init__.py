@@ -6,7 +6,7 @@ from app.models.base import Base
 from app.models.billing import BillingCycle, NotificationKind
 from app.models.host import Host
 from app.models.notification import Notification, TelegramLinkCode, UserNotificationSettings
-from app.models.plugin import PluginHostBinding, PluginInstall
+from app.models.plugin import PluginDailyMetric, PluginHostBinding, PluginInstall
 from app.models.tag import Tag, host_tags
 from app.models.task import Task, TaskLog, TaskLogStatus
 from app.models.user import User
@@ -19,6 +19,7 @@ __all__ = [
     "Host",
     "Notification",
     "NotificationKind",
+    "PluginDailyMetric",
     "PluginHostBinding",
     "PluginInstall",
     "Tag",

@@ -107,3 +107,9 @@ class PluginRepository:
 
     async def delete_binding(self, binding: PluginHostBinding) -> None:
         await self._session.delete(binding)
+
+    async def list_bindings(self, install_id: UUID) -> list[PluginHostBinding]:
+        result = await self._session.execute(
+            select(PluginHostBinding).where(PluginHostBinding.install_id == install_id)
+        )
+        return list(result.scalars().all())

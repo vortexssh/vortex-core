@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -100,3 +101,39 @@ class PluginHostBinding(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="host_bindings",
     )
     host: Mapped[Host] = relationship("Host")
+
+
+class PluginDailyMetric(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Day-bucketed plugin aggregates in PostgreSQL (not live Redis state)."""
+
+    __tablename__ = "plugin_daily_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "install_id",
+            "host_id",
+            "metric",
+            "day",
+            name="uq_plugin_daily_metrics_install_host_metric_day",
+        ),
+    )
+
+    install_id: Mapped[UUID] = mapped_column(
+        ForeignKey("plugin_installs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    host_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("hosts.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    metric: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    meta: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+
