@@ -1,7 +1,9 @@
+import json
 from datetime import date
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from fastapi import APIRouter, File, Form, Header, HTTPException, Query, UploadFile, status
 
 from app.api.deps import CurrentUser, DbSession, RedisClient
 from app.schemas.plugin import (
@@ -22,6 +24,7 @@ from app.schemas.plugin import (
     PluginUiBundle,
 )
 from app.services.plugin import PluginService
+from app.services.plugin_package import MAX_ZIP_BYTES, materialize_manifest_from_zip
 from app.services.plugin_state import PluginStateService
 
 router = APIRouter(prefix="/plugins", tags=["plugins"])
@@ -56,6 +59,47 @@ async def install_plugin(
     session: DbSession,
 ) -> PluginInstallCreated:
     return await PluginService(session).install(user.id, payload)
+
+
+@router.post(
+    "/install-package",
+    response_model=PluginInstallCreated,
+    status_code=status.HTTP_201_CREATED,
+)
+async def install_plugin_package(
+    user: CurrentUser,
+    session: DbSession,
+    file: UploadFile = File(..., description="Plugin ZIP with vortex-plugin.json"),
+    config: str = Form(default="{}"),
+) -> PluginInstallCreated:
+    """Install from a ZIP package (manifest + ui/ + schemas/; daemon code ignored)."""
+    raw = await file.read(MAX_ZIP_BYTES + 1)
+    if len(raw) > MAX_ZIP_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "invalid_plugin_package",
+                "message": f"ZIP exceeds {MAX_ZIP_BYTES // (1024 * 1024)} MiB limit",
+            },
+        )
+    try:
+        config_obj: Any = json.loads(config) if config.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_config", "message": "config must be JSON object"},
+        ) from exc
+    if not isinstance(config_obj, dict):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_config", "message": "config must be JSON object"},
+        )
+
+    manifest = materialize_manifest_from_zip(raw)
+    return await PluginService(session).install(
+        user.id,
+        PluginInstallCreate(manifest=manifest, config=config_obj),
+    )
 
 
 @router.get("/{install_id}", response_model=PluginInstallRead)

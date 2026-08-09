@@ -14,7 +14,10 @@ my-plugin/
   README.md
 ```
 
-For install via API/Web, either paste a self-contained `vortex-plugin.json` with inline `views` / `schemas`, or resolve file paths client-side before POST.
+For install via API/Web:
+
+- `POST /api/v1/plugins` with a self-contained JSON `{ manifest, config }`, or
+- `POST /api/v1/plugins/install-package` multipart: `file` = ZIP containing `vortex-plugin.json` (+ optional `ui/`, `schemas/`). Core inlines path refs into `manifest.views` / `manifest.schemas`. Daemon sources in the archive are ignored.
 
 ## Manifest
 
@@ -87,6 +90,7 @@ Authenticated as the user (JWT / `vxk_` API key):
 |--------|------|
 | GET | `/api/v1/plugins` |
 | POST | `/api/v1/plugins` body `{ manifest, config }` → includes one-time `daemon_token` |
+| POST | `/api/v1/plugins/install-package` multipart `file` (ZIP) + optional `config` JSON form field |
 | GET/PATCH/DELETE | `/api/v1/plugins/{install_id}` |
 | POST | `/api/v1/plugins/{install_id}/rotate-token` |
 | GET | `/api/v1/plugins/{install_id}/manifest` |

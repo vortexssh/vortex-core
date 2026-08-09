@@ -82,7 +82,7 @@ my-plugin/
 
 При установке через Web/API Core принимает **один JSON-манифест**. Пути вроде `"view": "ui/pages/home.json"` должны быть **заинлайнены** в `manifest.views` (и схемы — в `manifest.schemas`), либо клиент должен подставить файлы до `POST`.
 
-Рекомендация: публикуйте self-contained `vortex-plugin.json` с блоками `views` и `schemas` (как в Fake Metrics).
+Рекомендация: либо self-contained `vortex-plugin.json` с inline `views`/`schemas`, либо **ZIP-пакет** (`vortex-plugin.json` + `ui/` + `schemas/`) → Web Settings → Plugins → upload `.zip`, либо `POST /api/v1/plugins/install-package`.
 
 ---
 
@@ -325,7 +325,7 @@ my-plugin/
 ### Через Web
 
 1. Settings → **Plugins**.
-2. Вставить self-contained манифест → Install.
+2. Загрузить ZIP с `vortex-plugin.json` (+ `ui/`, `schemas/`) → Install (или JSON sample).
 3. **Сразу скопировать** `daemon_token` (`vxp_…`) — повторно не показывается.
 4. Сохранить `install_id` (UUID из списка installs).
 
