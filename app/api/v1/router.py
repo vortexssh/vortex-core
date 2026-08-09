@@ -1,7 +1,18 @@
 from fastapi import APIRouter
 
 from app.api.deps import RedisClient
-from app.api.v1 import agents, api_keys, auth, billing, hosts, public, tags, tasks, users
+from app.api.v1 import (
+    agents,
+    api_keys,
+    auth,
+    billing,
+    hosts,
+    plugins,
+    public,
+    tags,
+    tasks,
+    users,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -11,6 +22,7 @@ api_router.include_router(hosts.router)
 api_router.include_router(tags.router)
 api_router.include_router(agents.router)
 api_router.include_router(tasks.router)
+api_router.include_router(plugins.router)
 api_router.include_router(public.router)
 api_router.include_router(billing.router)
 

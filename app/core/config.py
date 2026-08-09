@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     agent_presence_ttl_seconds: int = 90
     ws_heartbeat_interval_seconds: int = 30
 
+    # Plugin daemon live state (Redis only — never PostgreSQL)
+    plugin_state_ttl_seconds: int = 300
+    plugin_history_size: int = 120
+    plugin_history_ttl_seconds: int = 7_200
+    plugin_connect_rate_limit_per_minute: int = 60
+
     # Public web URL used in verification emails (no trailing slash)
     web_app_url: str = Field(
         default="http://localhost:5173",

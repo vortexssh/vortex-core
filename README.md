@@ -72,14 +72,17 @@ docker-compose.yml
 | Tags | CRUD `/tags` |
 | Agents | `POST/GET/DELETE /hosts/{id}/agents`, `POST .../rotate` (2FA на create/rotate/revoke) |
 | Tasks | CRUD + `POST /tasks/{id}/run`, `GET /tasks/{id}/logs` (2FA) |
+| Plugins | CRUD `/plugins`, `/plugins/ui-bundle`, bindings, state, RPC; daemon `POST …/daemon/state` (`X-Plugin-Token`) |
 
-Авторизация: `Authorization: Bearer <jwt|vxk_...>` или `X-API-Key: vxk_...`.
+Авторизация: `Authorization: Bearer <jwt|vxk_...>` или `X-API-Key: vxk_...`.  
+Спека плагинов: [`PLUGIN_SPEC.md`](PLUGIN_SPEC.md); гайд для авторов демонов: [`docs/DAEMON_CREATORS.md`](docs/DAEMON_CREATORS.md); пример: [`examples/fake-metrics-plugin/`](examples/fake-metrics-plugin/).
 
 ## WebSocket
 
 | Endpoint | Auth | Назначение |
 |---|---|---|
 | `WS /ws/agent?agent_id=&secret=&version=` | agent secret | Постоянное соединение агента |
+| `WS /ws/plugin/{install_id}?token=` | `vxp_…` daemon token | Plugin daemon presence + RPC |
 | `WS /ws/proxy/{host_id}?token=` | JWT/API key + 2FA + `is_proxy_enabled` | Сырой TCP/SSH туннель |
 | `WS /ws/pty/{host_id}?token=&cols=&rows=` | JWT/API key + 2FA | Web-терминал (PTY) |
 

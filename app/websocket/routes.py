@@ -18,9 +18,11 @@ from app.repositories.host import HostRepository
 from app.repositories.user import UserRepository
 from app.services.agent import AgentService
 from app.services.host import HostService
+from app.services.plugin import PluginService
 from app.services.task import TaskService
 from app.services.telemetry import TelemetryService
 from app.websocket.manager import connection_manager, pump_websocket_until_disconnect
+from app.websocket.plugin_manager import plugin_connection_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["websocket"])
@@ -191,6 +193,71 @@ async def _authorize_host_tunnel(
             )
         agent_id = host.agent.id
         return user, agent_id
+
+
+@router.websocket("/ws/plugin/{install_id}")
+async def plugin_websocket(
+    websocket: WebSocket,
+    install_id: UUID,
+    token: str = Query(...),
+) -> None:
+    """Out-of-process plugin daemon channel (presence + RPC)."""
+    settings = get_settings()
+    client = websocket_client_ip(websocket) or "unknown"
+    try:
+        rate_limiter.check(
+            f"plugin-connect:{client}",
+            limit=settings.plugin_connect_rate_limit_per_minute,
+        )
+    except Exception:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    if not token.startswith("vxp_"):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    async with AsyncSessionLocal() as session:
+        service = PluginService(session)
+        try:
+            await service.authenticate_daemon(install_id, token)
+        except Exception:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+    await websocket.accept()
+    try:
+        await plugin_connection_manager.connect(install_id, websocket)
+        async with AsyncSessionLocal() as session:
+            await PluginService(session).set_daemon_online(install_id, True)
+        await websocket.send_json(
+            {"type": "connected", "install_id": str(install_id)}
+        )
+
+        async def on_text(text: str) -> None:
+            try:
+                message = json.loads(text)
+            except json.JSONDecodeError:
+                return
+            if not isinstance(message, dict):
+                return
+            await plugin_connection_manager.handle_message(install_id, message)
+
+        await pump_websocket_until_disconnect(websocket, on_text=on_text, on_bytes=None)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logger.exception("Plugin websocket error for %s", install_id)
+    finally:
+        try:
+            await plugin_connection_manager.disconnect(install_id, websocket)
+        except Exception:
+            logger.debug("plugin disconnect failed", exc_info=True)
+        try:
+            async with AsyncSessionLocal() as session:
+                await PluginService(session).set_daemon_online(install_id, False)
+        except Exception:
+            logger.debug("set_daemon_online failed", exc_info=True)
 
 
 @router.websocket("/ws/proxy/{host_id}")

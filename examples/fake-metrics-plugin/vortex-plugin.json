@@ -1,0 +1,121 @@
+{
+  "id": "com.example.fake_metrics",
+  "name": "Fake Metrics",
+  "version": "1.0.0",
+  "api_version": 1,
+  "permissions": [
+    "host.bind",
+    "state.write",
+    "rpc",
+    "nav",
+    "pages",
+    "hosts.columns",
+    "hosts.panels",
+    "settings"
+  ],
+  "config_schema": "schemas/settings.json",
+  "host_binding_schema": "schemas/host_binding.json",
+  "rpc": [
+    { "method": "refresh" },
+    { "method": "bump" }
+  ],
+  "ui": {
+    "contributions": [
+      {
+        "slot": "nav.items",
+        "id": "fake-nav",
+        "item": {
+          "label": "Fake Metrics",
+          "icon": "activity",
+          "route": "plugin:com.example.fake_metrics/home"
+        }
+      },
+      {
+        "slot": "routes",
+        "id": "fake-home",
+        "route": "plugin:com.example.fake_metrics/home",
+        "view": "ui/pages/home.json"
+      },
+      {
+        "slot": "hosts.table.columns",
+        "id": "fake-value",
+        "column": {
+          "header": "Fake",
+          "bind": "plugin.state.value",
+          "component": "metric",
+          "unit": "u"
+        }
+      },
+      {
+        "slot": "hosts.detail.panels",
+        "id": "fake-panel",
+        "view": "ui/panels/host.json",
+        "requires_host_binding": false
+      },
+      {
+        "slot": "settings.tabs",
+        "id": "fake-settings",
+        "label": "Fake Metrics",
+        "view": "ui/pages/settings.json"
+      }
+    ]
+  },
+  "views": {
+    "ui/pages/home.json": {
+      "type": "stack",
+      "children": [
+        {
+          "type": "text",
+          "text": "Reference plugin. The daemon publishes a counter to Core Redis state."
+        },
+        {
+          "type": "metric",
+          "label": "Global value",
+          "bind": "plugin.state.value",
+          "unit": "u"
+        },
+        { "type": "button", "label": "Refresh", "action": "refresh" },
+        { "type": "button", "label": "Bump", "action": "bump" }
+      ]
+    },
+    "ui/panels/host.json": {
+      "type": "panel",
+      "title": "Fake Metrics",
+      "children": [
+        {
+          "type": "metric",
+          "label": "Host value",
+          "bind": "plugin.state.value",
+          "unit": "u"
+        },
+        { "type": "button", "label": "Refresh", "action": "refresh" }
+      ]
+    },
+    "ui/pages/settings.json": {
+      "type": "stack",
+      "children": [
+        {
+          "type": "text",
+          "text": "Run the reference daemon with CORE_URL, INSTALL_ID, and DAEMON_TOKEN."
+        },
+        { "type": "metric", "label": "Last value", "bind": "plugin.state.value" }
+      ]
+    }
+  },
+  "schemas": {
+    "schemas/settings.json": {
+      "type": "object",
+      "properties": {
+        "interval_seconds": { "type": "integer", "title": "Poll interval (s)" }
+      },
+      "additionalProperties": false
+    },
+    "schemas/host_binding.json": {
+      "type": "object",
+      "properties": {
+        "label": { "type": "string", "title": "Label" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

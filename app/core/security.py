@@ -37,6 +37,11 @@ def generate_agent_secret() -> str:
     return f"vxa_{secrets.token_urlsafe(32)}"
 
 
+def generate_plugin_token() -> str:
+    """Daemon token for out-of-process plugin installs (vxp_…)."""
+    return f"vxp_{secrets.token_urlsafe(32)}"
+
+
 def create_access_token(
     *,
     subject: UUID,

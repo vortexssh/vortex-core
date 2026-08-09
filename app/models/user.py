@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.api_key import ApiKey
     from app.models.host import Host
     from app.models.notification import Notification, UserNotificationSettings
+    from app.models.plugin import PluginInstall
     from app.models.tag import Tag
 
 
@@ -91,6 +92,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     notifications: Mapped[list[Notification]] = relationship(
         "Notification",
         back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
+    plugin_installs: Mapped[list[PluginInstall]] = relationship(
+        "PluginInstall",
+        back_populates="owner",
         cascade="all, delete-orphan",
         lazy="noload",
     )

@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "interval_seconds": { "type": "integer", "title": "Poll interval (s)" }
+  },
+  "additionalProperties": false
+}
