@@ -14,6 +14,7 @@ from app.models.tag import host_tags
 
 if TYPE_CHECKING:
     from app.models.agent import Agent
+    from app.models.billing_payer import BillingPayer
     from app.models.tag import Tag
     from app.models.task import Task
     from app.models.user import User
@@ -61,8 +62,18 @@ class Host(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Boolean, default=True, server_default="true", nullable=False
     )
     billing_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    billing_payer_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("billing_payers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     owner: Mapped[User] = relationship("User", back_populates="hosts")
+    billing_payer: Mapped[BillingPayer | None] = relationship(
+        "BillingPayer",
+        back_populates="hosts",
+        lazy="selectin",
+    )
     tags: Mapped[list[Tag]] = relationship(
         "Tag",
         secondary=host_tags,

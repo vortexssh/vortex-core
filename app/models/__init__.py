@@ -4,6 +4,7 @@ from app.models.agent import Agent
 from app.models.api_key import ApiKey
 from app.models.base import Base
 from app.models.billing import BillingCycle, NotificationKind
+from app.models.billing_payer import BillingPayer
 from app.models.host import Host
 from app.models.notification import Notification, TelegramLinkCode, UserNotificationSettings
 from app.models.plugin import PluginDailyMetric, PluginHostBinding, PluginInstall
@@ -15,6 +16,7 @@ __all__ = [
     "Agent",
     "ApiKey",
     "Base",
+    "BillingPayer",
     "BillingCycle",
     "Host",
     "Notification",

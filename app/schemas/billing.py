@@ -133,6 +133,8 @@ class BillingHostBrief(BaseModel):
     # True = stored next renewal; False = projected future occurrence
     is_next: bool = True
     cycle: str | None = None
+    payer_id: UUID | None = None
+    payer_name: str | None = None
 
 
 class BillingDay(BaseModel):
@@ -145,6 +147,8 @@ class BillingCalendarResponse(BaseModel):
     month: int
     currency: str
     days: list[BillingDay]
+    payer_id: UUID | None = None
+    payer_name: str | None = None
 
 
 class BillingSummaryItem(BaseModel):
@@ -164,6 +168,61 @@ class BillingSummaryResponse(BaseModel):
     total: Decimal
     items: list[BillingSummaryItem]
     skipped: list[str] = Field(default_factory=list)
+    payer_id: UUID | None = None
+    payer_name: str | None = None
+
+
+class BillingPayerCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    notes: str | None = Field(default=None, max_length=4096)
+
+    @field_validator("notes")
+    @classmethod
+    def normalize_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class BillingPayerUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    notes: str | None = Field(default=None, max_length=4096)
+
+    @field_validator("notes")
+    @classmethod
+    def normalize_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class BillingPayerRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    notes: str | None = None
+    host_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class BillingPayerHostBrief(BaseModel):
+    id: UUID
+    name: str
+    billing_enabled: bool
+    billing_amount: Decimal | None = None
+    billing_currency: str | None = None
+    billing_renewal_at: date | None = None
+    billing_cycle: BillingCycleLiteral | None = None
+    billing_auto_renew: bool = True
+    country_code: str | None = None
+
+
+class BillingPayerDetail(BillingPayerRead):
+    hosts: list[BillingPayerHostBrief] = Field(default_factory=list)
 
 
 class BillingFieldsMixin(BaseModel):

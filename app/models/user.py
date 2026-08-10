@@ -10,6 +10,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.api_key import ApiKey
+    from app.models.billing_payer import BillingPayer
     from app.models.host import Host
     from app.models.notification import Notification, UserNotificationSettings
     from app.models.plugin import PluginInstall
@@ -73,6 +74,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     hosts: Mapped[list[Host]] = relationship(
         "Host",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
+    billing_payers: Mapped[list[BillingPayer]] = relationship(
+        "BillingPayer",
         back_populates="owner",
         cascade="all, delete-orphan",
         lazy="noload",

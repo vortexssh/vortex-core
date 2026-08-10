@@ -8,6 +8,10 @@ from app.api.deps import CurrentUser, DbSession, RedisClient
 from app.core.config import get_settings
 from app.schemas.billing import (
     BillingCalendarResponse,
+    BillingPayerCreate,
+    BillingPayerDetail,
+    BillingPayerRead,
+    BillingPayerUpdate,
     BillingSummaryResponse,
     NotificationRead,
     NotificationSettingsRead,
@@ -18,6 +22,7 @@ from app.schemas.billing import (
 )
 from app.schemas.host import HostRead
 from app.services.billing import BillingService
+from app.services.billing_payer import BillingPayerService
 from app.services.notifications import NotificationService
 from app.services.telegram import TelegramService
 
@@ -43,9 +48,10 @@ async def billing_summary(
     redis: RedisClient,
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
+    payer_id: UUID | None = Query(default=None),
 ) -> BillingSummaryResponse:
     return await BillingService(session, redis).summary(
-        user.id, from_date=from_date, to_date=to_date
+        user.id, from_date=from_date, to_date=to_date, payer_id=payer_id
     )
 
 
@@ -56,10 +62,55 @@ async def billing_calendar(
     redis: RedisClient,
     year: int = Query(..., ge=2000, le=2100),
     month: int = Query(..., ge=1, le=12),
+    payer_id: UUID | None = Query(default=None),
 ) -> BillingCalendarResponse:
     # Validate month exists
     monthrange(year, month)
-    return await BillingService(session, redis).calendar(user.id, year=year, month=month)
+    return await BillingService(session, redis).calendar(
+        user.id, year=year, month=month, payer_id=payer_id
+    )
+
+
+@router.get("/billing/payers", response_model=list[BillingPayerRead])
+async def list_billing_payers(user: CurrentUser, session: DbSession) -> list[BillingPayerRead]:
+    return await BillingPayerService(session).list_payers(user.id)
+
+
+@router.post("/billing/payers", response_model=BillingPayerRead, status_code=status.HTTP_201_CREATED)
+async def create_billing_payer(
+    payload: BillingPayerCreate,
+    user: CurrentUser,
+    session: DbSession,
+) -> BillingPayerRead:
+    return await BillingPayerService(session).create_payer(user.id, payload)
+
+
+@router.get("/billing/payers/{payer_id}", response_model=BillingPayerDetail)
+async def get_billing_payer(
+    payer_id: UUID,
+    user: CurrentUser,
+    session: DbSession,
+) -> BillingPayerDetail:
+    return await BillingPayerService(session).get_payer(user.id, payer_id)
+
+
+@router.patch("/billing/payers/{payer_id}", response_model=BillingPayerRead)
+async def update_billing_payer(
+    payer_id: UUID,
+    payload: BillingPayerUpdate,
+    user: CurrentUser,
+    session: DbSession,
+) -> BillingPayerRead:
+    return await BillingPayerService(session).update_payer(user.id, payer_id, payload)
+
+
+@router.delete("/billing/payers/{payer_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_billing_payer(
+    payer_id: UUID,
+    user: CurrentUser,
+    session: DbSession,
+) -> None:
+    await BillingPayerService(session).delete_payer(user.id, payer_id)
 
 
 @router.post("/hosts/{host_id}/billing/advance", response_model=HostRead)

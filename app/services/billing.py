@@ -129,15 +129,27 @@ class BillingService:
         *,
         year: int,
         month: int,
+        payer_id: UUID | None = None,
     ) -> BillingCalendarResponse:
         from calendar import monthrange
 
         user = await self._users.get_by_id(user_id)
         assert user is not None
         currency = user.preferred_currency
+        payer_name: str | None = None
+        if payer_id is not None:
+            from app.repositories.billing_payer import BillingPayerRepository
+
+            payer = await BillingPayerRepository(self._session).get_by_id(payer_id, user_id)
+            if payer is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"code": "payer_not_found", "message": "Billing payer not found"},
+                )
+            payer_name = payer.name
         month_start = date(year, month, 1)
         month_end = date(year, month, monthrange(year, month)[1])
-        hosts = await self._hosts.list_billing_for_user(user_id)
+        hosts = await self._hosts.list_billing_for_user(user_id, payer_id=payer_id)
         by_day: dict[date, list[BillingHostBrief]] = defaultdict(list)
 
         for host in hosts:
@@ -171,6 +183,8 @@ class BillingService:
                         country_code=host.country_code,
                         is_next=is_next,
                         cycle=host.billing_cycle,
+                        payer_id=host.billing_payer_id,
+                        payer_name=host.billing_payer.name if host.billing_payer else None,
                     )
                 )
 
@@ -178,7 +192,14 @@ class BillingService:
             BillingDay(date=d, hosts=items)
             for d, items in sorted(by_day.items(), key=lambda x: x[0])
         ]
-        return BillingCalendarResponse(year=year, month=month, currency=currency, days=days)
+        return BillingCalendarResponse(
+            year=year,
+            month=month,
+            currency=currency,
+            days=days,
+            payer_id=payer_id,
+            payer_name=payer_name,
+        )
 
     async def summary(
         self,
@@ -186,6 +207,7 @@ class BillingService:
         *,
         from_date: date,
         to_date: date,
+        payer_id: UUID | None = None,
     ) -> BillingSummaryResponse:
         if to_date < from_date:
             raise HTTPException(
@@ -195,7 +217,18 @@ class BillingService:
         user = await self._users.get_by_id(user_id)
         assert user is not None
         currency = user.preferred_currency
-        hosts = await self._hosts.list_billing_for_user(user_id)
+        payer_name: str | None = None
+        if payer_id is not None:
+            from app.repositories.billing_payer import BillingPayerRepository
+
+            payer = await BillingPayerRepository(self._session).get_by_id(payer_id, user_id)
+            if payer is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"code": "payer_not_found", "message": "Billing payer not found"},
+                )
+            payer_name = payer.name
+        hosts = await self._hosts.list_billing_for_user(user_id, payer_id=payer_id)
         items: list[BillingSummaryItem] = []
         skipped: list[str] = []
         total = Decimal("0.00")
@@ -243,4 +276,6 @@ class BillingService:
             total=total,
             items=items,
             skipped=skipped,
+            payer_id=payer_id,
+            payer_name=payer_name,
         )

@@ -1,11 +1,19 @@
 from datetime import date, datetime
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv6Address
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.billing import BillingCycleLiteral, BillingFieldsMixin, assert_billing_enabled_complete
+
+
+class BillingPayerBrief(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
 
 
 class TagRead(BaseModel):
@@ -36,6 +44,7 @@ class HostCreate(BillingFieldsMixin):
     is_proxy_enabled: bool = False
     billing_enabled: bool = False
     billing_auto_renew: bool = True
+    billing_payer_id: UUID | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -102,6 +111,7 @@ class HostUpdate(BillingFieldsMixin):
     notes: str | None = Field(default=None, max_length=16_384)
     country_code: str | None = Field(default=None, min_length=2, max_length=2)
     is_hidden: bool | None = None
+    billing_payer_id: UUID | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -194,6 +204,8 @@ class HostRead(BaseModel):
     billing_currency: str | None = None
     billing_auto_renew: bool = True
     billing_notes: str | None = None
+    billing_payer_id: UUID | None = None
+    payer: BillingPayerBrief | None = None
     tags: list[TagRead] = []
     agent: AgentStatusRead | None = None
     created_at: datetime
@@ -205,6 +217,20 @@ class HostRead(BaseModel):
         if value is None:
             return None
         return str(value)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def attach_payer(cls, data: Any, handler) -> "HostRead":
+        from app.models.host import Host
+
+        read = handler(data)
+        if isinstance(data, Host) and data.billing_payer is not None:
+            return read.model_copy(
+                update={
+                    "payer": BillingPayerBrief.model_validate(data.billing_payer),
+                }
+            )
+        return read
 
 
 class TagCreate(BaseModel):

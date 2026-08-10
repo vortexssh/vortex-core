@@ -71,6 +71,8 @@ class HostService:
         payload: HostCreate,
         redis: Redis | None = None,
     ) -> Host:
+        if payload.billing_payer_id is not None:
+            await self._validate_payer(user_id, payload.billing_payer_id)
         host = Host(
             user_id=user_id,
             name=payload.name,
@@ -92,6 +94,7 @@ class HostService:
             if payload.billing_auto_renew is not None
             else True,
             billing_notes=payload.billing_notes,
+            billing_payer_id=payload.billing_payer_id,
         )
         host = await self._hosts.create(host)
         await self._session.commit()
@@ -120,6 +123,8 @@ class HostService:
         data = payload.model_dump(exclude_unset=True)
         # country_code is derived from ip_address — ignore client overrides
         data.pop("country_code", None)
+        if "billing_payer_id" in data:
+            await self._validate_payer(user_id, data.get("billing_payer_id"))
         for key, value in data.items():
             setattr(host, key, value)
         await self._hosts.save(host)
@@ -175,6 +180,13 @@ class HostService:
         await self._hosts.save(host)
         await self._session.commit()
         return True
+
+    async def _validate_payer(self, user_id: UUID, payer_id: UUID | None) -> None:
+        if payer_id is None:
+            return
+        from app.services.billing_payer import BillingPayerService
+
+        await BillingPayerService(self._session).require_owned(user_id, payer_id)
 
     async def set_proxy(
         self,

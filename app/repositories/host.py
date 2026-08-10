@@ -16,6 +16,7 @@ class HostRepository:
         return select(Host).options(
             selectinload(Host.tags),
             selectinload(Host.agent),
+            selectinload(Host.billing_payer),
         )
 
     async def get_by_id(self, host_id: UUID, user_id: UUID) -> Host | None:
@@ -95,11 +96,26 @@ class HostRepository:
         )
         return list(result.scalars().unique().all())
 
-    async def list_billing_for_user(self, user_id: UUID) -> list[Host]:
+    async def list_billing_for_user(
+        self,
+        user_id: UUID,
+        *,
+        payer_id: UUID | None = None,
+    ) -> list[Host]:
+        query = self._base_query().where(
+            Host.user_id == user_id,
+            Host.billing_enabled.is_(True),
+        )
+        if payer_id is not None:
+            query = query.where(Host.billing_payer_id == payer_id)
+        result = await self._session.execute(query)
+        return list(result.scalars().unique().all())
+
+    async def list_for_payer(self, user_id: UUID, payer_id: UUID) -> list[Host]:
         result = await self._session.execute(
             self._base_query().where(
                 Host.user_id == user_id,
-                Host.billing_enabled.is_(True),
+                Host.billing_payer_id == payer_id,
             )
         )
         return list(result.scalars().unique().all())
