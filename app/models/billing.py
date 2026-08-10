@@ -87,6 +87,25 @@ def add_billing_period(
     return start + timedelta(days=days)
 
 
+def subtract_billing_period(
+    start: date,
+    cycle: BillingCycle | str,
+    custom_days: int | None = None,
+) -> date:
+    """Step a renewal date back by one billing period."""
+    cycle_value = BillingCycle(cycle) if not isinstance(cycle, BillingCycle) else cycle
+    if cycle_value == BillingCycle.MONTHLY:
+        return _add_months(start, -1)
+    if cycle_value == BillingCycle.QUARTERLY:
+        return _add_months(start, -3)
+    if cycle_value == BillingCycle.SEMIANNUAL:
+        return _add_months(start, -6)
+    if cycle_value == BillingCycle.ANNUAL:
+        return _add_months(start, -12)
+    days = custom_days if custom_days and custom_days > 0 else 30
+    return start - timedelta(days=days)
+
+
 def _add_months(start: date, months: int) -> date:
     month = start.month - 1 + months
     year = start.year + month // 12

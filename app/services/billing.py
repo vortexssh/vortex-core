@@ -11,7 +11,11 @@ from fastapi import HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.billing import add_billing_period, host_billing_ready
+from app.models.billing import (
+    add_billing_period,
+    host_billing_ready,
+    subtract_billing_period,
+)
 from app.models.host import Host
 from app.repositories.host import HostRepository
 from app.repositories.user import UserRepository
@@ -35,19 +39,38 @@ def _occurrences_in_range(
     """Yield (occurrence_date, is_next) for dates in [range_start, range_end].
 
     is_next is True only for the stored next renewal (`renewal_at`).
-    Later cycle advances are projected (inactive in the UI).
+    Dates before renewal_at are past/paid (inactive); dates after are projected
+    (inactive). Walks the cycle both directions so Renew keeps prior marks on
+    the calendar and every month still shows hosts on their cycle days.
     """
     cursor = renewal_at
-    # Catch up to the start of the visible range
     guard = 0
-    while cursor < range_start and guard < 240:
-        cursor = add_billing_period(cursor, cycle, custom_days)
+    # Walk back to the first occurrence on/after range_start (or just before it).
+    while guard < 240:
+        prev = subtract_billing_period(cursor, cycle, custom_days)
+        if prev >= cursor:
+            break
+        if prev < range_start:
+            break
+        cursor = prev
+        guard += 1
+
+    # If still before the window, step forward into it.
+    while cursor < range_start and guard < 480:
+        nxt = add_billing_period(cursor, cycle, custom_days)
+        if nxt <= cursor:
+            break
+        cursor = nxt
         guard += 1
 
     out: list[tuple[date, bool]] = []
-    while cursor <= range_end and guard < 480:
-        out.append((cursor, cursor == renewal_at))
-        cursor = add_billing_period(cursor, cycle, custom_days)
+    while cursor <= range_end and guard < 720:
+        if cursor >= range_start:
+            out.append((cursor, cursor == renewal_at))
+        nxt = add_billing_period(cursor, cycle, custom_days)
+        if nxt <= cursor:
+            break
+        cursor = nxt
         guard += 1
     return out
 
