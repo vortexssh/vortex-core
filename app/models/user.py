@@ -41,6 +41,13 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         server_default="false",
         nullable=False,
     )
+    require_2fa: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+        doc="When false, skip TOTP at login and UserWith2FA / tunnel 2FA gates (debug).",
+    )
     is_email_verified: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

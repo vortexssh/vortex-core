@@ -168,7 +168,7 @@ async def _authorize_host_tunnel(
     require_proxy: bool,
 ) -> tuple[Any, Any]:
     user = await _resolve_user_from_token(token)
-    if not user.is_2fa_enabled:
+    if user.require_2fa and not user.is_2fa_enabled:
         raise WebSocketException(
             code=status.WS_1008_POLICY_VIOLATION,
             reason="2FA required",

@@ -25,6 +25,7 @@ class UserRead(BaseModel):
     email: EmailStr
     public_slug: str | None = None
     is_2fa_enabled: bool
+    require_2fa: bool = True
     is_email_verified: bool
     is_active: bool
     preferred_currency: str = "USD"
@@ -40,6 +41,7 @@ class UserRead(BaseModel):
                 "email": data.email,
                 "public_slug": data.public_slug,
                 "is_2fa_enabled": data.is_2fa_enabled,
+                "require_2fa": data.require_2fa,
                 "is_email_verified": data.is_email_verified,
                 "is_active": data.is_active,
                 "preferred_currency": data.preferred_currency,

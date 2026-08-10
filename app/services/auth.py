@@ -89,7 +89,7 @@ class AuthService:
                     "message": "Confirm your email before signing in",
                 },
             )
-        if user.is_2fa_enabled:
+        if user.is_2fa_enabled and user.require_2fa:
             if not payload.totp_code or not user.totp_secret:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

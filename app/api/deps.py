@@ -91,8 +91,8 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def require_2fa(user: CurrentUser) -> User:
-    """Block agent-facing operations until TOTP is enabled."""
-    if not user.is_2fa_enabled:
+    """Block agent-facing operations until TOTP is enabled (unless require_2fa=false)."""
+    if user.require_2fa and not user.is_2fa_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
