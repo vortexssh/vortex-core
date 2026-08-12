@@ -82,18 +82,25 @@ class AgentConnectionManager:
         websocket: WebSocket,
         version: str | None = None,
     ) -> None:
+        if websocket.client_state != WebSocketState.CONNECTED:
+            return
+
+        replaced_ws: WebSocket | None = None
         async with self._lock:
             existing = self._agents.get(agent_id)
-            if existing is not None:
-                try:
-                    await existing.websocket.close(code=4000, reason="Replaced by new connection")
-                except Exception:
-                    logger.debug("Failed closing previous agent socket", exc_info=True)
+            if existing is not None and existing.websocket is not websocket:
+                replaced_ws = existing.websocket
             self._agents[agent_id] = AgentConnection(
                 agent_id=agent_id,
                 host_id=host_id,
                 websocket=websocket,
             )
+
+        if replaced_ws is not None:
+            try:
+                await replaced_ws.close(code=4000, reason="Replaced by new connection")
+            except Exception:
+                logger.debug("Failed closing previous agent socket", exc_info=True)
 
         settings = get_settings()
         if self._redis is not None:
@@ -111,8 +118,18 @@ class AgentConnectionManager:
         if self.on_presence:
             await self.on_presence(agent_id, True, version)
 
-    async def disconnect_agent(self, agent_id: UUID) -> None:
+    async def disconnect_agent(
+        self,
+        agent_id: UUID,
+        *,
+        websocket: WebSocket | None = None,
+    ) -> None:
         async with self._lock:
+            conn = self._agents.get(agent_id)
+            if conn is None:
+                return
+            if websocket is not None and conn.websocket is not websocket:
+                return
             conn = self._agents.pop(agent_id, None)
             if conn is not None:
                 for session_id in list(conn.sessions.keys()):

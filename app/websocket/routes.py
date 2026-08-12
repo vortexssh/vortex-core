@@ -135,13 +135,13 @@ async def agent_websocket(
     connection_manager.on_task_result = on_task_result
 
     try:
+        await websocket.send_json({"type": "connected", "agent_id": str(agent_id)})
         await connection_manager.connect_agent(
             agent_id=agent_id,
             host_id=host_id,
             websocket=websocket,
             version=version,
         )
-        await websocket.send_json({"type": "connected", "agent_id": str(agent_id)})
 
         async def on_text(text: str) -> None:
             await connection_manager.handle_agent_message(agent_id, text)
@@ -156,7 +156,7 @@ async def agent_websocket(
         logger.exception("Agent websocket error for %s", agent_id)
     finally:
         try:
-            await connection_manager.disconnect_agent(agent_id)
+            await connection_manager.disconnect_agent(agent_id, websocket=websocket)
         except Exception:
             logger.debug("disconnect_agent failed", exc_info=True)
 
