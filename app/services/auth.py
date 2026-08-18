@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.twofa import totp_enforced, twofa_mode
 from app.core.security import (
     build_totp_uri,
     create_access_token,
@@ -89,7 +90,7 @@ class AuthService:
                     "message": "Confirm your email before signing in",
                 },
             )
-        if user.is_2fa_enabled and user.require_2fa:
+        if user.is_2fa_enabled and totp_enforced(user):
             if not payload.totp_code or not user.totp_secret:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -246,6 +247,14 @@ class AuthService:
         return user
 
     async def disable_2fa(self, user: User, code: str) -> User:
+        if twofa_mode() == "prod":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "2fa_required",
+                    "message": "Two-factor authentication cannot be disabled in production",
+                },
+            )
         if not user.is_2fa_enabled or not user.totp_secret:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

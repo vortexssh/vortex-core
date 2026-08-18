@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
+from app.core.twofa import totp_enforced
 from app.models.user import User
 
 
@@ -41,7 +42,7 @@ class UserRead(BaseModel):
                 "email": data.email,
                 "public_slug": data.public_slug,
                 "is_2fa_enabled": data.is_2fa_enabled,
-                "require_2fa": data.require_2fa,
+                "require_2fa": totp_enforced(data),
                 "is_email_verified": data.is_email_verified,
                 "is_active": data.is_active,
                 "preferred_currency": data.preferred_currency,

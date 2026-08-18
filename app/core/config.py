@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     app_name: str = "VortexCore"
     app_env: str = "development"
+    # debug | dev | prod. Empty → derive from APP_ENV (production→prod, debug→debug, else dev).
+    security_level: str = ""
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
@@ -105,6 +107,12 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.app_env.lower() in {"development", "dev", "local"}
+
+    @property
+    def twofa_mode(self) -> str:
+        from app.core.twofa import resolve_twofa_mode
+
+        return resolve_twofa_mode(self.app_env, self.security_level)
 
     @property
     def smtp_configured(self) -> bool:

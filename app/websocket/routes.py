@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketException, status
 from starlette.websockets import WebSocketDisconnect
 
 from app.core.config import get_settings
+from app.core.twofa import totp_enforced
 from app.core.client_ip import websocket_client_ip
 from app.core.database import AsyncSessionLocal
 from app.core.rate_limit import rate_limiter
@@ -168,7 +169,7 @@ async def _authorize_host_tunnel(
     require_proxy: bool,
 ) -> tuple[Any, Any]:
     user = await _resolve_user_from_token(token)
-    if user.require_2fa and not user.is_2fa_enabled:
+    if totp_enforced(user) and not user.is_2fa_enabled:
         raise WebSocketException(
             code=status.WS_1008_POLICY_VIOLATION,
             reason="2FA required",

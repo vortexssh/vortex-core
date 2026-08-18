@@ -47,7 +47,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default=True,
         server_default="true",
         nullable=False,
-        doc="When false, skip TOTP at login and UserWith2FA / tunnel 2FA gates (debug).",
+        doc="dev SECURITY_LEVEL only: false skips TOTP. Ignored in debug (always skip) and prod (always on).",
     )
     is_email_verified: Mapped[bool] = mapped_column(
         Boolean,

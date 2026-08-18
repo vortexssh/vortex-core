@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db_session
 from app.core.redis import get_redis
 from app.core.security import decode_access_token, verify_secret
+from app.core.twofa import totp_enforced
 from app.models.user import User
 from app.repositories.api_key import ApiKeyRepository
 from app.repositories.user import UserRepository
@@ -91,8 +92,8 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def require_2fa(user: CurrentUser) -> User:
-    """Block agent-facing operations until TOTP is enabled (unless require_2fa=false)."""
-    if user.require_2fa and not user.is_2fa_enabled:
+    """Block agent-facing operations until TOTP is enabled (see SECURITY_LEVEL)."""
+    if totp_enforced(user) and not user.is_2fa_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

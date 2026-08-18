@@ -99,7 +99,7 @@ docker-compose.yml
 ## Безопасность
 
 1. **Zero-trust** — схемы hosts отвергают `password` / `private_key` / и т.п.
-2. **2FA** — dependency `require_2fa` на agent-facing REST и WS proxy/pty.
+2. **2FA** — уровень `SECURITY_LEVEL`: `debug` (TOTP выключен для всех), `dev` (bypass только у `users.require_2fa=false`), `prod` (2FA обязательна, флаг в БД игнорируется). Гейты: REST `UserWith2FA` и WS proxy/pty.
 3. **No DB metrics** — только Redis ключ `telemetry:{host_id}` с TTL.
 4. **GeoIP** — `hosts.country_code` заполняется по IP из карточки хоста (create/update/list) и при подключении агента.
 5. **Host billing** — опциональные `billing_*` поля; daily APScheduler шлёт напоминания (email / Telegram / inbox) и auto-renew при online агенте. FX через Frankfurter. Telegram-бот: отдельный репо `vortex-telegram-bot`.
