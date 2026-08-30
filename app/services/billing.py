@@ -205,6 +205,7 @@ class BillingService:
                         amount_converted=converted,
                         country_code=host.country_code,
                         is_next=is_next,
+                        next_renewal_at=host.billing_renewal_at,
                         cycle=host.billing_cycle,
                         payer_id=host.billing_payer_id,
                         payer_name=host.billing_payer.name if host.billing_payer else None,

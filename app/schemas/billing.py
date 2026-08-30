@@ -130,8 +130,9 @@ class BillingHostBrief(BaseModel):
     billing_currency: str | None = None
     amount_converted: Decimal | None = None
     country_code: str | None = None
-    # True = stored next renewal; False = projected future occurrence
+    # True = stored next renewal; False = inactive mark (paid before / projected after)
     is_next: bool = True
+    next_renewal_at: date | None = None
     cycle: str | None = None
     payer_id: UUID | None = None
     payer_name: str | None = None
